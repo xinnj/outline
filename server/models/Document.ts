@@ -948,7 +948,19 @@ class Document extends ArchivableModel<
       throw new Error("Revision does not belong to this document");
     }
 
-    this.content = revision.content;
+    // Derive content from the revision. When revision.content is null (old
+    // revision from before the Prosemirror content column was added), fall
+    // back to the revision's text. Without this, the @BeforeUpdate hook would
+    // re-derive content from the current document's state, silently ignoring
+    // the restore.
+    this.content =
+      revision.content ?? (await DocumentHelper.toJSON(revision));
+
+    // Discard the collaborative YJS state so it is rebuilt from the restored
+    // content. If left unchanged, any fallback through state would return the
+    // current document's content.
+    this.state = null;
+
     this.text = await DocumentHelper.toMarkdown(revision, {
       includeTitle: false,
     });

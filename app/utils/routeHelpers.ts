@@ -316,7 +316,7 @@ export function urlify(
   path: string,
   origin: string = window.location.origin
 ): string {
-  return `${origin}${path}`;
+  return `${origin}${env.BASE_PATH}${path}`;
 }
 
 /**

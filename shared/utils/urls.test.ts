@@ -310,6 +310,57 @@ describe("parseShareIdFromUrl", () => {
   });
 });
 
+describe("cdnPath", () => {
+  beforeEach(() => {
+    delete env.CDN_URL;
+    delete env.BASE_PATH;
+    env.URL = "https://app.outline.dev";
+  });
+
+  it("returns the path unchanged when no CDN or base path is set", () => {
+    expect(urlsUtils.cdnPath("/images/icon-192.png")).toBe(
+      "/images/icon-192.png"
+    );
+  });
+
+  it("prepends CDN_URL when configured", () => {
+    env.CDN_URL = "https://cdn.example.com";
+    expect(urlsUtils.cdnPath("/images/icon-192.png")).toBe(
+      "https://cdn.example.com/images/icon-192.png"
+    );
+  });
+
+  it("prepends BASE_PATH when set (client-side sub-path)", () => {
+    env.BASE_PATH = "/outline";
+    expect(urlsUtils.cdnPath("/images/icon-192.png")).toBe(
+      "/outline/images/icon-192.png"
+    );
+  });
+
+  it("derives base path from URL pathname when BASE_PATH is unset (server-side fallback)", () => {
+    env.URL = "https://app.outline.dev/kb";
+    expect(urlsUtils.cdnPath("/images/icon-192.png")).toBe(
+      "/kb/images/icon-192.png"
+    );
+  });
+
+  it("prefers CDN_URL over BASE_PATH", () => {
+    env.CDN_URL = "https://cdn.example.com";
+    env.BASE_PATH = "/outline";
+    expect(urlsUtils.cdnPath("/images/icon-192.png")).toBe(
+      "https://cdn.example.com/images/icon-192.png"
+    );
+  });
+
+  it("prefers BASE_PATH over URL-derived path", () => {
+    env.BASE_PATH = "/outline";
+    env.URL = "https://app.outline.dev/kb";
+    expect(urlsUtils.cdnPath("/images/icon-192.png")).toBe(
+      "/outline/images/icon-192.png"
+    );
+  });
+});
+
 describe("#urlRegex", () => {
   it("should return undefined for invalid urls", () => {
     expect(urlRegex(undefined)).toBeUndefined();
@@ -327,5 +378,93 @@ describe("#urlRegex", () => {
     expect(regex?.test("http://docs.google.com")).toBe(false);
     expect(regex?.test("http://docs.google.com/")).toBe(false);
     expect(regex?.test("http://docs.google.com/d/123")).toBe(false);
+  });
+});
+
+describe("isDocumentUrl", () => {
+  beforeEach(() => {
+    delete env.BASE_PATH;
+    env.URL = "https://app.outline.dev";
+  });
+
+  it("should return true for a relative /doc/ path", () => {
+    expect(urlsUtils.isDocumentUrl("/doc/doc-abc123")).toBe(true);
+  });
+
+  it("should return true for a relative /d/ path", () => {
+    expect(urlsUtils.isDocumentUrl("/d/doc-short")).toBe(true);
+  });
+
+  it("should return false for non-document paths", () => {
+    expect(urlsUtils.isDocumentUrl("/collection/col-123")).toBe(false);
+    expect(urlsUtils.isDocumentUrl("/dashboard")).toBe(false);
+  });
+
+  it("should return false for external URLs", () => {
+    expect(urlsUtils.isDocumentUrl("https://example.com/doc/doc-123")).toBe(
+      false
+    );
+  });
+
+  it("should return true for a /d/ path with trailing content", () => {
+    expect(urlsUtils.isDocumentUrl("/d/doc-short/child")).toBe(true);
+  });
+
+  describe("with basePath", () => {
+    beforeEach(() => {
+      env.BASE_PATH = "/kb";
+      env.URL = "https://app.outline.dev/kb";
+    });
+
+    it("should match a base-prefixed /doc/ path", () => {
+      expect(urlsUtils.isDocumentUrl("/kb/doc/doc-123")).toBe(true);
+    });
+
+    it("should match a base-prefixed /d/ path", () => {
+      expect(urlsUtils.isDocumentUrl("/kb/d/doc-short")).toBe(true);
+    });
+
+    it("should match when basePath is empty string", () => {
+      env.BASE_PATH = "";
+      expect(urlsUtils.isDocumentUrl("/doc/doc-123")).toBe(true);
+    });
+  });
+});
+
+describe("isCollectionUrl", () => {
+  beforeEach(() => {
+    delete env.BASE_PATH;
+    env.URL = "https://app.outline.dev";
+  });
+
+  it("should return true for a relative /collection/ path", () => {
+    expect(urlsUtils.isCollectionUrl("/collection/col-abc123")).toBe(true);
+  });
+
+  it("should return false for non-collection paths", () => {
+    expect(urlsUtils.isCollectionUrl("/doc/doc-abc123")).toBe(false);
+    expect(urlsUtils.isCollectionUrl("/dashboard")).toBe(false);
+  });
+
+  it("should return false for external URLs", () => {
+    expect(
+      urlsUtils.isCollectionUrl("https://example.com/collection/col-123")
+    ).toBe(false);
+  });
+
+  describe("with basePath", () => {
+    beforeEach(() => {
+      env.BASE_PATH = "/kb";
+      env.URL = "https://app.outline.dev/kb";
+    });
+
+    it("should match a base-prefixed /collection/ path", () => {
+      expect(urlsUtils.isCollectionUrl("/kb/collection/col-123")).toBe(true);
+    });
+
+    it("should match when basePath is empty string", () => {
+      env.BASE_PATH = "";
+      expect(urlsUtils.isCollectionUrl("/collection/col-123")).toBe(true);
+    });
   });
 });

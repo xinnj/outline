@@ -25,3 +25,8 @@ node_modules
 **/__mocks__
 **/__snapshots__
 **/test/fixtures
+
+# SSL certs (should not be baked into images)
+*.key
+*.cert
+*.pem

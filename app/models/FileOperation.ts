@@ -6,6 +6,7 @@ import {
   FileOperationType,
   type FileOperationFormat,
 } from "@shared/types";
+import env from "@shared/env";
 import { bytesToHumanReadable } from "@shared/utils/files";
 import type FileOperationsStore from "~/stores/FileOperationsStore";
 import User from "./User";
@@ -46,7 +47,7 @@ class FileOperation extends Model {
 
   @computed
   get downloadUrl(): string {
-    return `/api/fileOperations.redirect?id=${this.id}`;
+    return `${env.BASE_PATH}/api/fileOperations.redirect?id=${this.id}`;
   }
 
   // Hooks

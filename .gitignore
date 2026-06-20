@@ -4,6 +4,7 @@ node_modules/*
 .env
 .env.local
 .env.production
+.env.*.local
 .log
 .vscode/*
 npm-debug.log
@@ -15,6 +16,10 @@ data/*
 *.key
 *.cert
 .history
+
+# Playwright E2E test artifacts
+test-results
+playwright-report
 
 # Yarn Berry
 .yarn/*

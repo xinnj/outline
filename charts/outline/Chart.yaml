@@ -1,0 +1,26 @@
+apiVersion: v2
+name: outline
+description: A Helm chart for Outline — a fast, collaborative knowledge base
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - outline
+  - wiki
+  - knowledge-base
+  - collaboration
+home: https://www.getoutline.com/
+sources:
+  - https://github.com/xinnj/outline
+maintainers:
+  - name: outline
+    url: https://github.com/xinnj/outline
+dependencies:
+  - name: postgresql
+    version: 16.7.27
+    repository: oci://registry-1.docker.io/bitnamicharts
+    condition: postgresql.enabled
+  - name: redis
+    version: 21.0.2
+    repository: oci://registry-1.docker.io/bitnamicharts
+    condition: redis.enabled

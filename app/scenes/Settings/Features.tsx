@@ -5,6 +5,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { toast } from "sonner";
 import { TeamPreference } from "@shared/types";
 import { TeamValidation } from "@shared/validations";
+import env from "~/env";
 import Heading from "~/components/Heading";
 import Scene from "~/components/Scene";
 import Switch from "~/components/Switch";
@@ -47,7 +48,7 @@ function Features() {
     toast.success(t("Copied to clipboard"));
   }, [t]);
 
-  const mcpEndpoint = window.location.origin + "/mcp";
+  const mcpEndpoint = `${window.location.origin}${env.BASE_PATH}/mcp`;
 
   return (
     <Scene title={t("AI")} icon={<SparklesIcon />}>

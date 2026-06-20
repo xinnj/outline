@@ -345,7 +345,11 @@ export default class AuthStore extends Store<Team> {
     // if this logout was forced from an authenticated route then
     // save the current path so we can go back there once signed in
     if (savePath) {
-      setPostLoginPath(window.location.pathname + window.location.search);
+      const basePath = env.BASE_PATH || "";
+      const pathname = basePath
+        ? window.location.pathname.replace(new RegExp(`^${basePath}`), "") || "/"
+        : window.location.pathname;
+      setPostLoginPath(pathname + window.location.search);
     }
 
     if (revokeToken) {
@@ -374,7 +378,7 @@ export default class AuthStore extends Store<Team> {
     ) {
       // Route through the server so it can build a spec-compliant RP-initiated
       // logout URL (including the id_token_hint) for the OIDC provider.
-      this.logoutRedirectUri = "/auth/oidc.logout";
+      this.logoutRedirectUri = `${env.BASE_PATH || ""}/auth/oidc.logout`;
     }
 
     if (clearCache) {

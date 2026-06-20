@@ -8,6 +8,7 @@ import validate from "@server/middlewares/validate";
 import { Integration, IntegrationAuthentication } from "@server/models";
 import type { APIContext } from "@server/types";
 import { verifyOAuthStateNonce } from "@server/utils/oauth";
+import env from "@server/env";
 import { NotionClient } from "../notion";
 import * as T from "./schema";
 import {
@@ -38,7 +39,7 @@ router.get(
 
     // Check error after any sub-domain redirection. Otherwise, the user will be redirected to the root domain.
     if (error) {
-      ctx.redirect(NotionUtils.errorUrl(error));
+      ctx.redirect(`${env.basePath}${NotionUtils.errorUrl(error)}`);
       return;
     }
 
@@ -81,7 +82,7 @@ router.get(
       { transaction }
     );
 
-    ctx.redirect(NotionUtils.successUrl(integration.id));
+    ctx.redirect(`${env.basePath}${NotionUtils.successUrl(integration.id)}`);
   }
 );
 

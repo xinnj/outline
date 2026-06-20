@@ -12,6 +12,7 @@ import PluginIcon from "~/components/PluginIcon";
 import useQuery from "~/hooks/useQuery";
 import { client } from "~/utils/ApiClient";
 import Desktop from "~/utils/Desktop";
+import env from "~/env";
 
 type Props = React.ComponentProps<typeof ButtonLarge>;
 
@@ -86,7 +87,7 @@ export function PasskeyAuthenticationProvider(props: Props) {
         "/passkeys.generateAuthenticationOptions",
         undefined,
         {
-          baseUrl: "/auth",
+          baseUrl: `${env.BASE_PATH}/auth`,
         }
       );
       const { challengeId, ...optionsData } = resp.data;
@@ -135,7 +136,7 @@ export function PasskeyAuthenticationProvider(props: Props) {
     // platform authenticator support. Open the flow in the system browser,
     // which returns to the app via the outline:// deep link like SSO login.
     if (Desktop.isElectron()) {
-      window.location.href = `/auth/passkey?client=${Client.Desktop}`;
+      window.location.href = `${env.BASE_PATH}/auth/passkey?client=${Client.Desktop}`;
       return;
     }
 
@@ -147,7 +148,7 @@ export function PasskeyAuthenticationProvider(props: Props) {
       <Form
         ref={formRef}
         method="POST"
-        action="/auth/passkeys.verifyAuthentication"
+        action={`${env.BASE_PATH}/auth/passkeys.verifyAuthentication`}
         onSubmit={handleSubmit}
       >
         {fields &&

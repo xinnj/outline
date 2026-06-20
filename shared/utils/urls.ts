@@ -4,13 +4,37 @@ import { isBrowser } from "./browser";
 import { parseDomain } from "./domains";
 
 /**
- * Prepends the CDN url to the given path (If a CDN is configured).
+ * Returns the base url that app-served assets (images, locales, fonts) are
+ * reachable from. Prefers the CDN url when configured, otherwise the path the
+ * app is served from (empty at the domain root, e.g. "/outline" under a
+ * sub-path). On the client this is read from the injected env; on the server it
+ * is derived from the configured URL.
  *
- * @param path The path to prepend the CDN url to.
- * @returns The path with the CDN url prepended.
+ * @returns the asset base url without a trailing slash.
+ */
+function assetBaseUrl(): string {
+  if (env.CDN_URL) {
+    return env.CDN_URL;
+  }
+  if (typeof env.BASE_PATH === "string") {
+    return env.BASE_PATH;
+  }
+  try {
+    return new URL(env.URL).pathname.replace(/\/+$/, "");
+  } catch (_err) {
+    return "";
+  }
+}
+
+/**
+ * Prepends the asset base url to the given path. Uses the CDN url when
+ * configured, otherwise the app base path so assets resolve under a sub-path.
+ *
+ * @param path The path to prepend the asset base url to.
+ * @returns The path with the asset base url prepended.
  */
 export function cdnPath(path: string): string {
-  return `${env.CDN_URL ?? ""}${path}`;
+  return `${assetBaseUrl()}${path}`;
 }
 
 /**
@@ -67,9 +91,11 @@ export function isInternalUrl(href: string) {
 export function isDocumentUrl(url: string) {
   try {
     const parsed = new URL(url, env.URL);
+    const basePath = (env.BASE_PATH as string) || "";
     return (
       isInternalUrl(url) &&
-      (parsed.pathname.startsWith("/doc/") || parsed.pathname.startsWith("/d/"))
+      (parsed.pathname.startsWith(`${basePath}/doc/`) ||
+        parsed.pathname.startsWith(`${basePath}/d/`))
     );
   } catch (_err) {
     return false;
@@ -85,7 +111,11 @@ export function isDocumentUrl(url: string) {
 export function isCollectionUrl(url: string) {
   try {
     const parsed = new URL(url, env.URL);
-    return isInternalUrl(url) && parsed.pathname.startsWith("/collection/");
+    const basePath = (env.BASE_PATH as string) || "";
+    return (
+      isInternalUrl(url) &&
+      parsed.pathname.startsWith(`${basePath}/collection/`)
+    );
   } catch (_err) {
     return false;
   }

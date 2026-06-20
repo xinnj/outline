@@ -189,10 +189,29 @@ describe("scanner path 404s", () => {
     expect(res.status).toEqual(200);
   });
 
+  it("sets the CSRF cookie with a path scoped to the base path", async () => {
+    const res = await server.get("/");
+    const cookie = res.headers.get("set-cookie");
+    expect(cookie).not.toBeNull();
+    expect(cookie).toContain("path=/");
+  });
+
   it("still serves the OAuth well-known endpoint", async () => {
     const res = await server.get("/.well-known/oauth-authorization-server");
     expect(res.status).toEqual(200);
     const body = await res.json();
     expect(body.issuer).toBeDefined();
+    expect(body.authorization_endpoint).toBeDefined();
+    expect(body.token_endpoint).toBeDefined();
+  });
+
+  it("returns OIDC discovery endpoints that include the base path", async () => {
+    const res = await server.get("/.well-known/oauth-authorization-server");
+    const body = await res.json();
+    // The issuer and endpoints share a common base URL
+    expect(body.issuer).toBeDefined();
+    expect(body.authorization_endpoint).toBe(`${body.issuer}/oauth/authorize`);
+    expect(body.token_endpoint).toBe(`${body.issuer}/oauth/token`);
+    expect(body.revocation_endpoint).toBe(`${body.issuer}/oauth/revoke`);
   });
 });

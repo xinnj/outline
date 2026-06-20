@@ -27,7 +27,8 @@ describe("DocumentInsight.rollupPeriod", () => {
       endUuid: document.id,
     });
 
-    expect(upserted).toBe(0);
+    // The full-UUID-range scan may upsert rows for other teams' documents that
+    // have stale activity in the window — only assert on the test team.
     expect(await DocumentInsight.count({ where: { teamId: team.id } })).toBe(0);
   });
 

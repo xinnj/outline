@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "outline.fullname" . }}
+  labels:
+    {{- include "outline.labels" . | nindent 4 }}
+data:
+  URL: {{ required "outline.url is required" .Values.outline.url | quote }}
+  PORT: {{ .Values.outline.port | quote }}
+  FORCE_HTTPS: {{ .Values.outline.forceHttps | quote }}
+  {{- if .Values.outline.cdnUrl }}
+  CDN_URL: {{ .Values.outline.cdnUrl | quote }}
+  {{- end }}
+
+  {{- if .Values.outline.oidc.clientId }}
+  OIDC_CLIENT_ID: {{ .Values.outline.oidc.clientId | quote }}
+  OIDC_ISSUER_URL: {{ .Values.outline.oidc.issuerUrl | quote }}
+  OIDC_AUTH_URI: {{ .Values.outline.oidc.authUrl | quote }}
+  OIDC_TOKEN_URI: {{ .Values.outline.oidc.tokenUrl | quote }}
+  OIDC_USERINFO_URI: {{ .Values.outline.oidc.userinfoUrl | quote }}
+  OIDC_DISPLAY_NAME: {{ .Values.outline.oidc.displayName | quote }}
+  OIDC_SCOPES: {{ .Values.outline.oidc.scopes | quote }}
+  OIDC_LOGOUT_URI: {{ .Values.outline.oidc.logoutUrl | quote }}
+  {{- end }}
+
+  DEFAULT_USER_ROLE: {{ .Values.outline.defaultUserRole | quote }}
+
+  {{- if .Values.outline.smtp.enabled }}
+  SMTP_HOST: {{ .Values.outline.smtp.host | quote }}
+  SMTP_PORT: {{ .Values.outline.smtp.port | quote }}
+  SMTP_USERNAME: {{ .Values.outline.smtp.username | quote }}
+  SMTP_FROM_EMAIL: {{ .Values.outline.smtp.fromEmail | quote }}
+  SMTP_REPLY_EMAIL: {{ .Values.outline.smtp.replyEmail | quote }}
+  SMTP_SECURE: {{ .Values.outline.smtp.secure | quote }}
+  {{- end }}
+
+  FILE_STORAGE: "local"
+  FILE_STORAGE_LOCAL_ROOT_DIR: "/var/lib/outline/data"
+
+  PGSSLMODE: {{ .Values.outline.pgsslmode | quote }}
+
+  {{- if .Values.redis.enabled }}
+  REDIS_URL: "redis://{{ .Release.Name }}-redis-master:6379"
+  {{- else }}
+  REDIS_URL: {{ required "externalRedisUrl is required when redis.enabled is false" .Values.externalRedisUrl | quote }}
+  {{- end }}
+
+  {{- range $key, $val := .Values.outline.extraEnv }}
+  {{ $key }}: {{ $val | quote }}
+  {{- end }}

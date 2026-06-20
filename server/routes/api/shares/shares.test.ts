@@ -1332,6 +1332,12 @@ describe("#shares.revoke", () => {
 });
 
 describe("#shares.subscribe", () => {
+  beforeAll(async () => {
+    // Clean up subscriptions from prior test runs so the per-IP limit
+    // (maxSubscriptionsPerIP = 3) is not exhausted before this block starts.
+    await ShareSubscription.destroy({ where: {} });
+  });
+
   it("should create a subscription for a published share", async () => {
     const share = await buildShare();
     const res = await server.post("/api/shares.subscribe", {

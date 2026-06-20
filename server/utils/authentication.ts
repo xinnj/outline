@@ -45,10 +45,10 @@ export async function signIn(
   const { transaction } = ctx.state;
 
   if (team.isSuspended) {
-    return ctx.redirect("/?notice=team-suspended");
+    return ctx.redirect(`${env.basePath}/?notice=team-suspended`);
   }
   if (user.isSuspended) {
-    return ctx.redirect("/?notice=user-suspended");
+    return ctx.redirect(`${env.basePath}/?notice=user-suspended`);
   }
 
   if (isNewTeam) {
@@ -105,6 +105,7 @@ export async function signIn(
     httpOnly: false,
     sameSite: true,
     expires: new Date("2100"),
+    path: env.basePath || "/",
     domain,
   });
 
@@ -127,6 +128,7 @@ export async function signIn(
     ctx.cookies.set("sessions", sessions, {
       httpOnly: false,
       expires,
+      path: env.basePath || "/",
       domain,
     });
   }
@@ -149,6 +151,7 @@ export async function signIn(
   } else {
     ctx.cookies.set("accessToken", user.getSessionToken(expires, service), {
       sameSite: "lax",
+      path: env.basePath || "/",
       expires,
     });
 

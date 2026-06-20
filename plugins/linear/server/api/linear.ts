@@ -10,6 +10,7 @@ import validate from "@server/middlewares/validate";
 import { IntegrationAuthentication, Integration } from "@server/models";
 import type { APIContext } from "@server/types";
 import { verifyOAuthStateNonce } from "@server/utils/oauth";
+import env from "@server/env";
 import { Linear } from "../linear";
 import UploadIntegrationLogoTask from "@server/queues/tasks/UploadIntegrationLogoTask";
 import * as T from "./schema";
@@ -44,7 +45,7 @@ router.get(
 
     // Check error after any sub-domain redirection. Otherwise, the user will be redirected to the root domain.
     if (error) {
-      ctx.redirect(LinearUtils.errorUrl(error));
+      ctx.redirect(`${env.basePath}${LinearUtils.errorUrl(error)}`);
       return;
     }
 
@@ -106,13 +107,13 @@ router.get(
         }
       });
 
-      ctx.redirect(LinearUtils.successUrl());
+      ctx.redirect(`${env.basePath}${LinearUtils.successUrl()}`);
     } catch (err) {
       Logger.error(
         "Encountered error during Linear OAuth callback",
         toError(err)
       );
-      ctx.redirect(LinearUtils.errorUrl("unknown"));
+      ctx.redirect(`${env.basePath}${LinearUtils.errorUrl("unknown")}`);
     }
   }
 );

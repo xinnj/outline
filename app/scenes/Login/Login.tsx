@@ -287,7 +287,7 @@ function Login({ children, onBack }: Props) {
               </Note>
               <Form
                 method="POST"
-                action="/auth/email.callback"
+                action={`${env.BASE_PATH}/auth/email.callback`}
                 style={{ width: "100%" }}
               >
                 <input type="hidden" name="email" value={emailLinkSentTo} />

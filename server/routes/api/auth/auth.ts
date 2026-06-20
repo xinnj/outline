@@ -203,6 +203,7 @@ router.post(
 
     ctx.cookies.set("accessToken", "", {
       sameSite: "lax",
+      path: env.basePath || "/",
       expires: subMinutes(new Date(), 1),
     });
 

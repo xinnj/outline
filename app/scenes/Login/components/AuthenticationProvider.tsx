@@ -6,6 +6,7 @@ import { Client } from "@shared/types";
 import ButtonLarge from "~/components/ButtonLarge";
 import InputLarge from "~/components/InputLarge";
 import PluginIcon from "~/components/PluginIcon";
+import env from "~/env";
 import { client } from "~/utils/ApiClient";
 import Desktop from "~/utils/Desktop";
 import { getRedirectUrl } from "~/utils/urls";
@@ -77,7 +78,8 @@ function AuthenticationProvider(props: Props) {
 
     return (
       <Wrapper>
-        <Form method="POST" action="/auth/email" onSubmit={handleSubmitEmail}>
+        <Form method="POST" action={`${env.BASE_PATH}/auth/email`} onSubmit={handleSubmitEmail}
+        >
           {authState === "email" ? (
             <>
               <InputLarge

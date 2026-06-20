@@ -161,7 +161,7 @@ if (env.SLACK_CLIENT_ID && env.SLACK_CLIENT_SECRET) {
       const { user } = ctx.state.auth;
 
       if (error) {
-        ctx.redirect(SlackUtils.errorUrl(error));
+        ctx.redirect(`${env.basePath}${SlackUtils.errorUrl(error)}`);
         return;
       }
 
@@ -276,7 +276,7 @@ if (env.SLACK_CLIENT_ID && env.SLACK_CLIENT_SECRET) {
           throw ValidationError("Invalid integration type");
       }
 
-      ctx.redirect(SlackUtils.url);
+      ctx.redirect(`${env.basePath}${SlackUtils.url}`);
     }
   );
 }

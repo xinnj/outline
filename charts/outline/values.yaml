@@ -1,0 +1,123 @@
+# Image configuration
+image:
+  repository: xinnj/outline
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+podAnnotations: {}
+
+# Service
+service:
+  type: ClusterIP
+  port: 80
+
+# Ingress
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+# Resource requests and limits
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "500m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+
+# File storage persistence
+persistence:
+  enabled: false
+  ## Set annotations on pvc
+  annotations: {}
+  size: 10Gi
+  accessMode: ReadWriteOnce
+  storageClass: ""
+
+# Outline configuration
+outline:
+  # Public URL of the installation (required)
+  url: ""
+
+  # Port the server listens on
+  port: 3000
+
+  # Force HTTPS redirects
+  forceHttps: false
+
+  # Optional CDN URL for static assets
+  cdnUrl: ""
+
+  # OIDC authentication (at least one provider required)
+  oidc:
+    clientId: ""
+    clientSecret: ""
+    # OIDC issuer URL for automatic discovery of endpoints via
+    # .well-known/openid-configuration. When set, the auth, token,
+    # and userinfo URLs are auto-discovered and can be omitted.
+    issuerUrl: ""
+    logoutUrl: ""
+    # Manually specify OIDC endpoints (ignored if issuerUrl is set).
+    authUrl: ""
+    tokenUrl: ""
+    userinfoUrl: ""
+    displayName: "SSO"
+    scopes: "openid profile email"
+
+  # Default role for new SSO users (viewer or member). Overrides team-level setting.
+  defaultUserRole: "member"
+
+  # SMTP for email notifications (optional)
+  smtp:
+    enabled: false
+    host: ""
+    port: 587
+    username: ""
+    password: ""
+    fromEmail: ""
+    replyEmail: ""
+    secure: true
+
+  # PostgreSQL SSL mode (set to "require" for SSL connections)
+  pgsslmode: "disable"
+
+  # Catch-all for any Outline env var not covered above
+  # See https://docs.getoutline.com/s/hosting/doc/environment-variables
+  extraEnv: {}
+
+# PostgreSQL dependency
+postgresql:
+  enabled: true
+  global:
+    postgresql:
+      auth:
+        postgresPassword: postgres
+        password: outline
+        database: outline
+        username: outline
+  image:
+    repository: bitnamilegacy/postgresql
+
+# Redis dependency
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+
+# External database connection (used when postgresql.enabled is false)
+externalDatabaseUrl: ""
+
+# External Redis connection (used when redis.enabled is false)
+externalRedisUrl: ""

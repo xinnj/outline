@@ -30,6 +30,18 @@ for (const env of environments) {
   }
 }
 
+// Load local overrides for the current environment (.env.test.local, etc.)
+const localOverridePath = path.resolve(
+  process.cwd(),
+  `.env.${process.env.NODE_ENV ?? envDefault.NODE_ENV}.local`
+);
+if (fs.existsSync(localOverridePath)) {
+  environment = {
+    ...environment,
+    ...dotenv.parse(fs.readFileSync(localOverridePath, "utf8")),
+  };
+}
+
 process.env = {
   ...envDefault,
   ...environment,

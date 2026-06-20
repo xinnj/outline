@@ -186,6 +186,7 @@ export class StateStore {
       httpOnly: true,
       sameSite: "lax",
       secure: env.isProduction,
+      path: env.basePath || "/",
       expires: addMinutes(new Date(), 10),
       domain: getCookieDomain(context.hostname, env.isCloudHosted),
     });
@@ -204,6 +205,7 @@ export class StateStore {
       httpOnly: true,
       sameSite: "lax",
       secure: env.isProduction,
+      path: env.basePath || "/",
       expires: subMinutes(new Date(), 1),
       domain: getCookieDomain(context.hostname, env.isCloudHosted),
     });

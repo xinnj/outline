@@ -32,6 +32,7 @@ export function generateOAuthStateNonce(
   ctx.cookies.set(cookieName, nonce, {
     httpOnly: true,
     sameSite: "lax",
+    path: env.basePath || "/",
     expires: addMinutes(new Date(), 10),
     domain: getCookieDomain(ctx.hostname, env.isCloudHosted),
   });
@@ -59,6 +60,7 @@ export function verifyOAuthStateNonce(
   ctx.cookies.set(cookieName, "", {
     httpOnly: true,
     sameSite: "lax",
+    path: env.basePath || "/",
     expires: subMinutes(new Date(), 1),
     domain: getCookieDomain(ctx.hostname, env.isCloudHosted),
   });

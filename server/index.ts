@@ -86,7 +86,8 @@ async function start(_id: number, disconnect: () => void) {
 
   // install basic middleware shared by all services
   if (env.DEBUG.includes("http")) {
-    app.use(logger((str) => Logger.info("http", str)));
+    // oxlint-disable-next-line no-control-regex -- intentional: strip ANSI color escapes from log lines
+    app.use(logger((str) => Logger.info("http", str.replace(/\x1b\[[0-9;]*m/g, ""))));
   }
 
   app.use(helmet());

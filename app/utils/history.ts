@@ -1,5 +1,6 @@
 import type { Location, LocationDescriptorObject } from "history";
 import { createBrowserHistory } from "history";
+import env from "~/env";
 
 /**
  * Creates a location descriptor from an existing location with the given fields
@@ -18,6 +19,9 @@ export function patchLocation(
   return { pathname, search, hash, state, ...patch };
 }
 
-const history = createBrowserHistory();
+const history = createBrowserHistory({
+  // Serve the app under a sub-path when BASE_PATH is set (e.g. "/outline").
+  basename: env.BASE_PATH || undefined,
+});
 
 export default history;

@@ -112,7 +112,7 @@ export default function createMiddleware(providerName: string) {
             throw err;
           }
 
-          return ctx.redirect(`/?notice=auth-error`);
+          return ctx.redirect(`${env.basePath}/?notice=auth-error`);
         }
 
         // Passport.js may invoke this callback with err=null and user=null in
@@ -124,7 +124,7 @@ export default function createMiddleware(providerName: string) {
             "No user returned during authentication",
             AuthenticationError()
           );
-          return ctx.redirect(`/?notice=auth-error`);
+          return ctx.redirect(`${env.basePath}/?notice=auth-error`);
         }
 
         // Handle errors from Azure which come in the format: message, Trace ID,

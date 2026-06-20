@@ -2,6 +2,7 @@ import type { InferCreationAttributes } from "sequelize";
 import { Op } from "sequelize";
 import type { UserRole } from "@shared/types";
 import InviteAcceptedEmail from "@server/emails/templates/InviteAcceptedEmail";
+import env from "@server/env";
 import {
   DomainNotAllowedError,
   InvalidAuthenticationError,
@@ -260,7 +261,7 @@ export default async function userProvisioner(
         name,
         email,
         language,
-        role: role ?? team?.defaultUserRole,
+        role: role ?? env.DEFAULT_USER_ROLE ?? team?.defaultUserRole,
         teamId,
         avatarUrl,
         authentications: authentication ? [authentication] : [],

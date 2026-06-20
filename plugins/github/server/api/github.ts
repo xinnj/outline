@@ -45,12 +45,12 @@ router.get(
     const { transaction } = ctx.state;
 
     if (error) {
-      ctx.redirect(GitHubUtils.errorUrl(error));
+      ctx.redirect(`${env.basePath}${GitHubUtils.errorUrl(error)}`);
       return;
     }
 
     if (setupAction === T.SetupAction.request) {
-      ctx.redirect(GitHubUtils.installRequestUrl());
+      ctx.redirect(`${env.basePath}${GitHubUtils.installRequestUrl()}`);
       return;
     }
 
@@ -69,7 +69,7 @@ router.get(
     );
 
     if (!installation) {
-      return ctx.redirect(GitHubUtils.errorUrl("unauthenticated"));
+      return ctx.redirect(`${env.basePath}${GitHubUtils.errorUrl("unauthenticated")}`);
     }
 
     const scopes = Object.entries(installation.permissions).map(
@@ -104,7 +104,7 @@ router.get(
         },
       },
     });
-    ctx.redirect(GitHubUtils.url);
+    ctx.redirect(`${env.basePath}${GitHubUtils.url}`);
   }
 );
 

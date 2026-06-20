@@ -27,6 +27,7 @@ export function attachCSRFToken() {
       ctx.cookies.set(CSRF.cookieName, bundled, {
         httpOnly: false,
         sameSite: "lax",
+        path: env.basePath || "/",
         domain: getCookieDomain(ctx.request.hostname, env.isCloudHosted),
       });
     }
@@ -55,7 +56,7 @@ export function verifyCSRFToken() {
     }
 
     // For API routes, use AuthenticationHelper to determine if the operation is read-only
-    if (ctx.originalUrl.startsWith("/api/")) {
+    if (ctx.originalUrl.startsWith(`${env.basePath}/api/`)) {
       const canAccessWithReadOnly = AuthenticationHelper.canAccess(ctx.path, [
         Scope.Read,
       ]);

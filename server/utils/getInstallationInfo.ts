@@ -22,6 +22,10 @@ export async function getVersionInfo(currentVersion: string): Promise<{
   latestVersion: string;
   versionsBehind: number;
 }> {
+  if (process.env.DISABLE_VERSION_CHECK === "true") {
+    return { latestVersion: currentVersion, versionsBehind: -1 };
+  }
+
   try {
     let allVersions: string[] = [];
     let latestVersion: string | null = null;

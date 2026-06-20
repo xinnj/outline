@@ -48,6 +48,8 @@ describe("auth/redirect", () => {
 
     const cookie = res.headers.get("set-cookie");
     expect(cookie).not.toBeNull();
+    expect(cookie).toContain("path=/");
+
     const match = cookie!.match(/accessToken=([^;]+)/);
     expect(match).not.toBeNull();
 

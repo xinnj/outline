@@ -3,6 +3,7 @@ import { useHistory } from "react-router-dom";
 import { isModKey } from "@shared/utils/keyboard";
 import { isDocumentUrl, isInternalUrl } from "@shared/utils/urls";
 import { patchLocation } from "~/utils/history";
+import env from "@shared/env";
 import { sharedModelPath } from "~/utils/routeHelpers";
 import { isHash } from "~/utils/urls";
 import useStores from "./useStores";
@@ -58,8 +59,8 @@ export default function useEditorClickHandlers({ shareId }: Params) {
         }
 
         // Link to our own API should be opened in a new tab, not in the app
-        if (navigateTo.startsWith("/api/")) {
-          window.open(href, "_blank");
+        if (navigateTo.startsWith(`${env.BASE_PATH || ""}/api/`)) {
+          window.open(navigateTo, "_blank");
           return;
         }
 
@@ -86,8 +87,8 @@ export default function useEditorClickHandlers({ shareId }: Params) {
         }
 
         // If we're navigating to a share link from a non-share link then open it in a new tab
-        if (!shareId && navigateTo.startsWith("/s/")) {
-          window.open(href, "_blank");
+        if (!shareId && navigateTo.startsWith(`${env.BASE_PATH || ""}/s/`)) {
+          window.open(navigateTo, "_blank");
           return;
         }
 

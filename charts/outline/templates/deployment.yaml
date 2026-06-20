@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "outline.fullname" . }}
+  labels:
+    {{- include "outline.labels" . | nindent 4 }}
+    velero.io/backup-app: outline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "outline.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "outline.selectorLabels" . | nindent 8 }}
+        velero.io/backup-app: outline
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: 1001
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+          env:
+            - name: SERVICES
+              value: "web,worker,websockets,collaboration"
+            {{- if .Values.postgresql.enabled }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgresql
+                  key: password
+            - name: DATABASE_URL
+              value: "postgres://{{ .Values.postgresql.global.postgresql.auth.username }}:$(POSTGRES_PASSWORD)@{{ .Release.Name }}-postgresql:5432/{{ .Values.postgresql.global.postgresql.auth.database }}"
+            {{- else }}
+            - name: DATABASE_URL
+              value: {{ required "externalDatabaseUrl is required when postgresql.enabled is false" .Values.externalDatabaseUrl | quote }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "outline.fullname" . }}
+            - secretRef:
+                name: {{ include "outline.fullname" . }}-secret
+          ports:
+            - containerPort: {{ .Values.outline.port }}
+              name: http
+          volumeMounts:
+            - name: {{ include "outline.fullname" . }}-data
+              mountPath: /var/lib/outline/data
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /_health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /_health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: {{ include "outline.fullname" . }}-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-%s" (include "outline.fullname" .) "data") }}
+          {{- else }}
+          emptyDir: { }
+          {{- end }}

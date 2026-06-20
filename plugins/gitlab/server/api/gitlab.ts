@@ -149,7 +149,7 @@ router.get(
     const { transaction } = ctx.state;
 
     if (error) {
-      ctx.redirect(GitLabUtils.errorUrl(error));
+      ctx.redirect(`${env.basePath}${GitLabUtils.errorUrl(error)}`);
       return;
     }
 
@@ -216,7 +216,7 @@ router.get(
       });
 
       if (duplicateIntegration) {
-        ctx.redirect(GitLabUtils.errorUrl("duplicate_account"));
+        ctx.redirect(`${env.basePath}${GitLabUtils.errorUrl("duplicate_account")}`);
         return;
       }
 
@@ -283,13 +283,13 @@ router.get(
         });
       }
 
-      ctx.redirect(GitLabUtils.url);
+      ctx.redirect(`${env.basePath}${GitLabUtils.url}`);
     } catch (err) {
       Logger.error(
         "Encountered error during Gitlab OAuth callback",
         toError(err)
       );
-      ctx.redirect(GitLabUtils.errorUrl("unauthenticated"));
+      ctx.redirect(`${env.basePath}${GitLabUtils.errorUrl("unauthenticated")}`);
     }
   }
 );

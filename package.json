@@ -33,6 +33,10 @@
     "test:shared": "TZ=UTC vitest run --project shared-node --project shared-jsdom",
     "test:server": "TZ=UTC vitest run --project server",
     "test:watch": "TZ=UTC vitest",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
+    "test:e2e:root": "playwright test --config e2e/playwright.config.ts --project=chromium-root",
+    "test:e2e:subpath": "playwright test --config e2e/playwright.config.ts --project=chromium-subpath",
+    "test:e2e:debug": "PWDEBUG=1 playwright test --config e2e/playwright.config.ts --headed",
     "vite:dev": "VITE_CJS_IGNORE_WARNING=true vite",
     "vite:build": "VITE_CJS_IGNORE_WARNING=true vite build",
     "vite:preview": "VITE_CJS_IGNORE_WARNING=true vite preview"
@@ -279,6 +283,7 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^8.4.1",
+    "@playwright/test": "^1.52.0",
     "@relative-ci/agent": "^4.3.1",
     "@swc/cli": "^0.8.1",
     "@swc/core": "^1.15.32",
