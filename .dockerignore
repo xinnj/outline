@@ -30,3 +30,16 @@ node_modules
 *.key
 *.cert
 *.pem
+
+# Dev & test artifacts (reduce build context size)
+test-results
+e2e
+docs
+charts
+.claude
+coverage
+playwright-report
+.bloop
+.cursor
+.idea
+*.tgz

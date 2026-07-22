@@ -3,10 +3,21 @@ FROM node:24.16.0 AS builder
 
 ARG APP_PATH
 ARG CDN_URL
+ARG APT_MIRROR
+ARG YARN_REGISTRY
 
 WORKDIR $APP_PATH
 
-RUN apt-get update && apt-get install -y cmake && \
+# Use APT_MIRROR for faster package downloads in certain regions (e.g. China).
+# Set the build arg to an apt mirror URL like "http://mirrors.aliyun.com".
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|http://deb.debian.org/debian|${APT_MIRROR}/debian|g" /etc/apt/sources.list.d/debian.sources; \
+      sed -i "s|http://security.debian.org/debian-security|${APT_MIRROR}/debian-security|g" /etc/apt/sources.list.d/debian.sources; \
+    fi
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y cmake && \
     rm -rf /var/lib/apt/lists/*
 
 ENV NODE_OPTIONS="--max-old-space-size=24000"
@@ -14,7 +25,11 @@ ENV NODE_OPTIONS="--max-old-space-size=24000"
 COPY ./package.json ./yarn.lock ./.yarnrc.yml ./
 COPY ./patches ./patches
 
-RUN corepack enable && \
+RUN --mount=type=cache,target=/root/.yarn,sharing=locked \
+    corepack enable && \
+    if [ -n "$YARN_REGISTRY" ]; then \
+      yarn config set npmRegistryServer "$YARN_REGISTRY"; \
+    fi && \
     yarn install --immutable --network-timeout 1000000 && \
     yarn cache clean
 
@@ -22,7 +37,8 @@ COPY . .
 
 RUN yarn build
 
-RUN yarn workspaces focus --production && \
+RUN --mount=type=cache,target=/root/.yarn,sharing=locked \
+    yarn workspaces focus --production && \
     yarn cache clean
 
 # ---
@@ -31,6 +47,7 @@ FROM node:24.16.0-slim AS runner
 LABEL org.opencontainers.image.source="https://github.com/outline/outline"
 
 ARG APP_PATH
+ARG APT_MIRROR
 WORKDIR $APP_PATH
 ENV NODE_ENV=production
 
@@ -46,6 +63,11 @@ COPY --from=builder --chown=nodejs:nodejs $APP_PATH/public ./public
 COPY --from=builder --chown=nodejs:nodejs $APP_PATH/.sequelizerc ./.sequelizerc
 COPY --from=builder --chown=nodejs:nodejs $APP_PATH/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs $APP_PATH/package.json ./package.json
+
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|http://deb.debian.org/debian|${APT_MIRROR}/debian|g" /etc/apt/sources.list.d/debian.sources; \
+      sed -i "s|http://security.debian.org/debian-security|${APT_MIRROR}/debian-security|g" /etc/apt/sources.list.d/debian.sources; \
+    fi
 
 RUN apt-get update && \
     apt-get install -y wget && \

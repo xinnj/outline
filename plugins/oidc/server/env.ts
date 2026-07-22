@@ -85,6 +85,24 @@ class OIDCPluginEnvironment extends Environment {
   public OIDC_SCOPES = environment.OIDC_SCOPES ?? "openid profile email";
 
   /**
+   * The claim path in the OIDC userinfo/id_token response that determines
+   * whether a user should be granted the Admin role. Supports dot-notation
+   * for nested paths (e.g. "realm_access.roles").
+   */
+  public OIDC_ADMIN_CLAIM = this.toOptionalString(
+    environment.OIDC_ADMIN_CLAIM
+  );
+
+  /**
+   * The value that the claim specified by OIDC_ADMIN_CLAIM must contain
+   * (in an array) or match exactly (as a string) for a user to be granted
+   * the Admin role.
+   */
+  public OIDC_ADMIN_CLAIM_VALUE = this.toOptionalString(
+    environment.OIDC_ADMIN_CLAIM_VALUE
+  );
+
+  /**
    * Disable autoredirect to the OIDC login page if there is only one
    * authentication method and that method is OIDC.
    */

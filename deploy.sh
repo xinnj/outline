@@ -72,10 +72,14 @@ step2_build_push() {
         exit 1
     }
 
+    local build_args=""
+    [ -n "$APT_MIRROR" ] && build_args="$build_args --build-arg APT_MIRROR=$APT_MIRROR"
+    [ -n "$YARN_REGISTRY" ] && build_args="$build_args --build-arg YARN_REGISTRY=$YARN_REGISTRY"
+
     echo_info "Building and pushing Docker image: ${DOCKER_IMAGE} (linux/amd64)"
     ssh ${SSH_OPTS} \
         "${REMOTE_USER}@${REMOTE_HOST}" \
-        "cd ${REMOTE_PATH} && docker buildx build --platform linux/amd64 -f Dockerfile.fork -t ${DOCKER_IMAGE} --push ."
+        "cd ${REMOTE_PATH} && docker buildx build --platform linux/amd64 -f Dockerfile.fork -t ${DOCKER_IMAGE} --push $build_args ."
 
     echo_info "Docker image built and pushed successfully!"
 }

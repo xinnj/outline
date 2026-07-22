@@ -1,8 +1,122 @@
 import Redis from "@server/storage/redis";
 import { RedisPrefixHelper } from "@server/utils/RedisPrefixHelper";
+import { UserRole } from "@shared/types";
 import { getTestServer } from "@server/test/support";
+import { getAdminRoleFromClaims } from "./oidcRouter";
+import env from "../env";
 
 const server = getTestServer();
+
+describe("getAdminRoleFromClaims", () => {
+  const originalClaim = env.OIDC_ADMIN_CLAIM;
+  const originalClaimValue = env.OIDC_ADMIN_CLAIM_VALUE;
+
+  afterEach(() => {
+    env.OIDC_ADMIN_CLAIM = originalClaim;
+    env.OIDC_ADMIN_CLAIM_VALUE = originalClaimValue;
+  });
+
+  function setEnv(claim: string | undefined, value: string | undefined) {
+    env.OIDC_ADMIN_CLAIM = claim;
+    env.OIDC_ADMIN_CLAIM_VALUE = value;
+  }
+
+  it("returns undefined when OIDC_ADMIN_CLAIM is not set", () => {
+    setEnv(undefined, "admin");
+    const result = getAdminRoleFromClaims(
+      { groups: ["admin"] },
+      {},
+      env
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when OIDC_ADMIN_CLAIM_VALUE is not set", () => {
+    setEnv("groups", undefined);
+    const result = getAdminRoleFromClaims(
+      { groups: ["admin"] },
+      {},
+      env
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("returns Admin when array claim contains the value", () => {
+    setEnv("groups", "outline-admins");
+    const result = getAdminRoleFromClaims(
+      { groups: ["engineering", "outline-admins"] },
+      {},
+      env
+    );
+    expect(result).toBe(UserRole.Admin);
+  });
+
+  it("returns undefined when array claim does not contain the value", () => {
+    setEnv("groups", "outline-admins");
+    const result = getAdminRoleFromClaims(
+      { groups: ["engineering"] },
+      {},
+      env
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("returns Admin when string claim matches exactly", () => {
+    setEnv("role", "admin");
+    const result = getAdminRoleFromClaims(
+      { role: "admin" },
+      {},
+      env
+    );
+    expect(result).toBe(UserRole.Admin);
+  });
+
+  it("returns undefined when string claim does not match", () => {
+    setEnv("role", "admin");
+    const result = getAdminRoleFromClaims(
+      { role: "user" },
+      {},
+      env
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("supports nested claim paths via dot notation", () => {
+    setEnv("realm_access.roles", "admin");
+    const result = getAdminRoleFromClaims(
+      { realm_access: { roles: ["admin", "user"] } },
+      {},
+      env
+    );
+    expect(result).toBe(UserRole.Admin);
+  });
+
+  it("falls back to token when claim is missing in profile", () => {
+    setEnv("groups", "outline-admins");
+    const result = getAdminRoleFromClaims(
+      {},
+      { groups: ["outline-admins"] },
+      env
+    );
+    expect(result).toBe(UserRole.Admin);
+  });
+
+  it("returns undefined when claim is missing in both profile and token", () => {
+    setEnv("groups", "outline-admins");
+    const result = getAdminRoleFromClaims({}, {}, env);
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when claim value is neither array nor string", () => {
+    setEnv("groups", "admin");
+    const result = getAdminRoleFromClaims(
+      { groups: 123 },
+      {},
+      env
+    );
+    expect(result).toBeUndefined();
+  });
+});
 
 describe("oidc", () => {
   it("should pass query params along with auth redirect", async () => {

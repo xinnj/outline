@@ -74,9 +74,21 @@ outline:
     userinfoUrl: ""
     displayName: "SSO"
     scopes: "openid profile email"
+    # Claim path and value that grant Admin role. When both are set, any user
+    # whose OIDC claims match is promoted to Admin on every login (and demoted
+    # if they stop matching). Supports dot-notation for nested paths.
+    adminClaim: "groups"
+    adminClaimValue: "outline_admin"
 
   # Default role for new SSO users (viewer or member). Overrides team-level setting.
   defaultUserRole: "member"
+
+  # Rate limiting (default: 1000 requests per 60 seconds).
+  # Set enabled to false to disable entirely (e.g. for e2e test environments).
+  rateLimiter:
+    enabled: "true"
+    requests: "1000"
+    durationWindow: "60"
 
   # SMTP for email notifications (optional)
   smtp:

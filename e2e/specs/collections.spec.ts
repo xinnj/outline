@@ -46,15 +46,9 @@ test.describe("Collections", () => {
     expect(collection.id).toBeTruthy();
     expect(collection.name).toBe(collectionName);
 
-    // Verify the collection is accessible
-    const infoPromise = page.waitForResponse(
-      (res) =>
-        res.request().method() === "POST" &&
-        res.url().includes("/api/collections.info"),
-      { timeout: 15000 }
-    );
+    // Verify the collection is accessible by navigating to it
     await page.goto(`${basePath}${collection.url}`);
-    await infoPromise;
+    await page.waitForLoadState("networkidle");
 
     await expect(
       page.locator(`text=${collectionName}`).first()

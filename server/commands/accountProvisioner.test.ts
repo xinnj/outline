@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { randomUUID } from "node:crypto";
+import { UserRole } from "@shared/types";
 import { errToString } from "@shared/utils/error";
 import { TeamDomain } from "@server/models";
 import Collection from "@server/models/Collection";
@@ -499,6 +500,157 @@ describe("accountProvisioner", () => {
 
       const providers = await team.$get("authenticationProviders");
       expect(providers.find((p) => p.name === "google")).toBeTruthy();
+    });
+  });
+
+  describe("role override", () => {
+    it("should promote an existing user to Admin when role is provided", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({
+        teamId: team.id,
+        role: UserRole.Member,
+      });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+
+      const { user, isNewUser } = await accountProvisioner(ctx, {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+        role: UserRole.Admin,
+      });
+
+      expect(isNewUser).toEqual(false);
+      expect(user.role).toEqual(UserRole.Admin);
+    });
+
+    it("should not change role when role prop is undefined", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({
+        teamId: team.id,
+        role: UserRole.Member,
+      });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+
+      const { user, isNewUser } = await accountProvisioner(ctx, {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+      });
+
+      expect(isNewUser).toEqual(false);
+      expect(user.role).toEqual(UserRole.Member);
+    });
+
+    it("should create a new user with the provided Admin role", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const email = faker.internet.email();
+
+      const { user, isNewUser } = await accountProvisioner(ctx, {
+        user: {
+          name: "Jenny Tester",
+          email,
+          avatarUrl: faker.image.avatar(),
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: randomUUID(),
+          accessToken: "123",
+          scopes: ["read"],
+        },
+        role: UserRole.Admin,
+      });
+
+      expect(isNewUser).toEqual(true);
+      expect(user.role).toEqual(UserRole.Admin);
+    });
+
+    it("should demote an existing admin when role is null", async () => {
+      const team = await buildTeam();
+      // Ensure there is another admin so demotion doesn't violate the
+      // "at least one admin" constraint on the User model.
+      await buildAdmin({ teamId: team.id, email: faker.internet.email() });
+
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildAdmin({
+        teamId: team.id,
+      });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+
+      const { user, isNewUser } = await accountProvisioner(ctx, {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+        role: null,
+      });
+
+      expect(isNewUser).toEqual(false);
+      expect(user.role).not.toEqual(UserRole.Admin);
     });
   });
 

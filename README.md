@@ -31,6 +31,15 @@ The base path is surfaced to the client as `window.env.BASE_PATH` and used by th
 
 The `CDN_URL` environment variable is read at container start, not at build time. Assets (JS bundles, CSS, fonts, images) resolve against the CDN when set, or fall back to the base path. Switching CDNs no longer requires rebuilding the image.
 
+### OIDC admin role mapping
+
+Two new OIDC environment variables provide automatic admin role assignment based on identity provider claims:
+
+- **`OIDC_ADMIN_CLAIM`** — claim path in the OIDC userinfo/id_token response (supports dot-notation for nested paths, e.g. `realm_access.roles`)
+- **`OIDC_ADMIN_CLAIM_VALUE`** — the value to match against the claim. If the claim is an array, the user gets Admin if the array contains this value. If it's a string, it must match exactly.
+
+When both are set, role mapping runs on every login: users who match are promoted to Admin, users who stop matching are demoted. When unset, role assignment follows the existing team-level default.
+
 ### Helm chart
 
 A production-ready Helm chart is included at `charts/outline/` with:
@@ -90,17 +99,24 @@ helm install outline charts/outline \
 |-----|------|---------|-------------|
 | `url` | string | `""` | **Required.** Public URL of the installation. Include a path (e.g. `https://host/outline`) to serve under a sub-path. |
 | `port` | int | `3000` | Port the server listens on |
-| `forceHttps` | bool | `true` | Redirect HTTP requests to HTTPS |
+| `forceHttps` | bool | `false` | Redirect HTTP requests to HTTPS |
 | `cdnUrl` | string | `""` | CDN URL for static assets. Read at runtime — no rebuild needed to change. |
 | `oidc.clientId` | string | `""` | **Required.** OIDC client ID |
 | `oidc.clientSecret` | string | `""` | **Required.** OIDC client secret (stored in a Kubernetes Secret, not plaintext ConfigMap) |
 | `oidc.issuerUrl` | string | `""` | OIDC issuer URL for auto-discovery via `.well-known/openid-configuration`. When set, `authUrl`, `tokenUrl`, and `userinfoUrl` are auto-discovered and can be omitted. |
+| `oidc.logoutUrl` | string | `""` | OIDC RP-initiated logout endpoint. When set, logging out of Outline also ends the provider session. |
 | `oidc.authUrl` | string | `""` | **Required if no `issuerUrl`.** OIDC authorization endpoint |
 | `oidc.tokenUrl` | string | `""` | **Required if no `issuerUrl`.** OIDC token endpoint |
 | `oidc.userinfoUrl` | string | `""` | **Required if no `issuerUrl`.** OIDC userinfo endpoint |
-| `oidc.displayName` | string | `"OIDC"` | Login button label for this OIDC provider |
+| `oidc.displayName` | string | `"SSO"` | Login button label for this OIDC provider |
 | `oidc.scopes` | string | `"openid profile email"` | OIDC scopes to request |
+| `oidc.adminClaim` | string | `"groups"` | Claim path for admin role mapping. Supports dot-notation (e.g. `realm_access.roles`). Ignored when `adminClaimValue` is empty. |
+| `oidc.adminClaimValue` | string | `"outline_admin"` | Value that the claim must contain (array) or match (string) to grant Admin. Ignored when `adminClaim` is empty. |
 | `defaultUserRole` | string | `"member"` | Default role for new SSO users (`viewer` or `member`). Overrides the team-level setting. |
+| `rateLimiter.enabled` | string | `"true"` | Enable API rate limiting |
+| `rateLimiter.requests` | string | `"1000"` | Maximum requests per duration window |
+| `rateLimiter.durationWindow` | string | `"60"` | Rate limit window in seconds |
+| `pgsslmode` | string | `"disable"` | PostgreSQL SSL mode. Set to `"require"` for SSL connections. |
 | `smtp.enabled` | bool | `false` | Enable SMTP for email notifications and invites |
 | `smtp.host` | string | `""` | SMTP server hostname |
 | `smtp.port` | int | `587` | SMTP server port |
@@ -123,7 +139,7 @@ helm install outline charts/outline \
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | bool | `true` | Create a PVC for uploaded file storage |
+| `enabled` | bool | `false` | Create a PVC for uploaded file storage |
 | `size` | string | `10Gi` | Requested volume size |
 | `accessMode` | string | `ReadWriteOnce` | PVC access mode |
 | `storageClassName` | string | `""` | StorageClass to use. Empty uses the cluster default. |
@@ -133,7 +149,7 @@ helm install outline charts/outline \
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `type` | string | `ClusterIP` | Kubernetes Service type |
-| `port` | int | `3000` | Service port |
+| `port` | int | `80` | Service port |
 
 ### Ingress (`ingress.*`)
 
@@ -182,4 +198,4 @@ helm install outline charts/outline \
 - `SECRET_KEY` and `UTILS_SECRET` are auto-generated on first install and preserved across upgrades via `lookup` — do not delete the Secret between upgrades, it contains the encryption key for your stored data.
 - Database migrations run automatically on startup. No manual intervention needed.
 - The chart uses Bitnami PostgreSQL 16.x and Redis 21.x as sub-chart dependencies. See their upstream documentation for full configuration options.
-- This fork tracks upstream Outline. The sub-path and CDN changes are the only intentional divergences. For issues unrelated to sub-path or CDN behavior, please report them upstream at [outline/outline](https://github.com/outline/outline).
+- This fork tracks upstream Outline. The sub-path, dynamic CDN, and OIDC admin role mapping changes are the only intentional divergences. For issues unrelated to these features, please report them upstream at [outline/outline](https://github.com/outline/outline).

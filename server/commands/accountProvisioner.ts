@@ -79,6 +79,17 @@ type Props = {
     /** A number of seconds that the given access token expires in */
     expiresIn?: number;
   };
+  /**
+   * An explicit role to assign to the user during provisioning. Auth
+   * providers can use this to map external claims (e.g. OIDC group
+   * membership) to Outline roles.
+   *
+   * - `undefined` (or absent): role mapping not configured; leave untouched.
+   * - `UserRole.Admin`: promote to admin.
+   * - `null`: role mapping is configured but the user does not match the
+   *   admin claim — demote to the default role.
+   */
+  role?: UserRole | null;
 };
 
 export type AccountProvisionerResult = {
@@ -95,6 +106,7 @@ async function accountProvisioner(
     team: teamParams,
     authenticationProvider: authenticationProviderParams,
     authentication: authenticationParams,
+    role,
   }: Props
 ): Promise<AccountProvisionerResult> {
   let result;
@@ -183,6 +195,9 @@ async function accountProvisioner(
     throw AuthenticationProviderDisabledError();
   }
 
+  // For userProvisioner (new users), null means "use the default role".
+  const provisionerRole = role === null ? undefined : role;
+
   result = await userProvisioner(ctx, {
     name: userParams.name,
     email: userParams.email,
@@ -191,7 +206,7 @@ async function accountProvisioner(
       authenticationProviderParams.name
     ),
     language: userParams.language,
-    role: isNewTeam ? UserRole.Admin : undefined,
+    role: provisionerRole ?? (isNewTeam ? UserRole.Admin : undefined),
     avatarUrl: userParams.avatarUrl,
     teamId: team.id,
     authentication: emailMatchOnly
@@ -205,6 +220,42 @@ async function accountProvisioner(
         },
   });
   const { isNewUser, user } = result;
+
+  // When the caller provides an explicit role override (e.g. from OIDC
+  // claims), apply it to both new and existing users. `null` means the
+  // provider has role mapping configured but the user does not match the
+  // admin claim — demote to the default role. `undefined` means role mapping
+  // is not configured; leave the existing role untouched.
+  if (role !== undefined) {
+    const newRole: UserRole =
+      role ??
+      (env.DEFAULT_USER_ROLE as UserRole | undefined) ??
+      team?.defaultUserRole ??
+      UserRole.Member;
+
+    if (user.role !== newRole) {
+      const previousRole = user.role;
+
+      try {
+        await user.update({ role: newRole });
+        user.role = newRole;
+        Logger.info(
+          "authentication",
+          `Role updated via provider mapping for user ${user.id}`,
+          { previousRole, newRole }
+        );
+      } catch (err) {
+        // The User model enforces "at least one admin per team". If demotion
+        // would violate that constraint, skip the role update and warn so
+        // the login still succeeds. The admin should add another admin
+        // before removing themselves from the IdP group.
+        Logger.warn(
+          `Could not update role for user ${user.id} from ${previousRole} to ${newRole}`,
+          { ...toError(err), label: "authentication" }
+        );
+      }
+    }
+  }
 
   if (isNewUser && user.isInvited) {
     await Event.createFromContext(ctx, {

@@ -21,9 +21,15 @@ data:
   OIDC_DISPLAY_NAME: {{ .Values.outline.oidc.displayName | quote }}
   OIDC_SCOPES: {{ .Values.outline.oidc.scopes | quote }}
   OIDC_LOGOUT_URI: {{ .Values.outline.oidc.logoutUrl | quote }}
+  OIDC_ADMIN_CLAIM: {{ .Values.outline.oidc.adminClaim | quote }}
+  OIDC_ADMIN_CLAIM_VALUE: {{ .Values.outline.oidc.adminClaimValue | quote }}
   {{- end }}
 
   DEFAULT_USER_ROLE: {{ .Values.outline.defaultUserRole | quote }}
+
+  RATE_LIMITER_ENABLED: {{ .Values.outline.rateLimiter.enabled | quote }}
+  RATE_LIMITER_REQUESTS: {{ .Values.outline.rateLimiter.requests | quote }}
+  RATE_LIMITER_DURATION_WINDOW: {{ .Values.outline.rateLimiter.durationWindow | quote }}
 
   {{- if .Values.outline.smtp.enabled }}
   SMTP_HOST: {{ .Values.outline.smtp.host | quote }}

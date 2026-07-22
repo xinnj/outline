@@ -7,6 +7,7 @@ import { toError } from "@shared/utils/error";
 import { slugifyDomain } from "@shared/utils/domains";
 import { parseEmail } from "@shared/utils/email";
 import { isBase64Url } from "@shared/utils/urls";
+import { UserRole } from "@shared/types";
 import accountProvisioner from "@server/commands/accountProvisioner";
 import {
   OIDCMalformedUserInfoError,
@@ -31,6 +32,43 @@ import config from "../../plugin.json";
 import env from "../env";
 import { OIDCStrategy } from "./OIDCStrategy";
 import { createContext } from "@server/context";
+
+/**
+ * Checks the OIDC claims against the configured env vars to determine if a
+ * user should be granted the Admin role.
+ *
+ * @param profile The userinfo response from the OIDC provider.
+ * @param token The decoded id_token claims.
+ * @param oidcEnv The OIDC plugin environment.
+ * @returns UserRole.Admin if claims match, undefined otherwise.
+ */
+export function getAdminRoleFromClaims(
+  profile: Record<string, unknown>,
+  token: Record<string, unknown>,
+  oidcEnv: typeof env
+): UserRole | undefined {
+  if (!oidcEnv.OIDC_ADMIN_CLAIM || !oidcEnv.OIDC_ADMIN_CLAIM_VALUE) {
+    return undefined;
+  }
+
+  const claimValue =
+    get(profile, oidcEnv.OIDC_ADMIN_CLAIM) ??
+    get(token, oidcEnv.OIDC_ADMIN_CLAIM);
+
+  if (Array.isArray(claimValue)) {
+    return claimValue.includes(oidcEnv.OIDC_ADMIN_CLAIM_VALUE)
+      ? UserRole.Admin
+      : undefined;
+  }
+
+  if (typeof claimValue === "string") {
+    return claimValue === oidcEnv.OIDC_ADMIN_CLAIM_VALUE
+      ? UserRole.Admin
+      : undefined;
+  }
+
+  return undefined;
+}
 
 export interface OIDCEndpoints {
   authorizationURL: string;
@@ -213,7 +251,16 @@ export function createOIDCRouter(
               user,
               authType: context.state?.auth?.type,
             });
+            const adminRole = getAdminRoleFromClaims(profile, token, env);
+            // When role mapping env vars are set, always pass a concrete value
+            // so accountProvisioner can distinguish "mapping not configured"
+            // (undefined) from "mapping says user is not an admin" (null).
+            const role =
+              env.OIDC_ADMIN_CLAIM && env.OIDC_ADMIN_CLAIM_VALUE
+                ? (adminRole ?? null)
+                : undefined;
             const result = await accountProvisioner(ctx, {
+              role,
               team: {
                 teamId: team?.id,
                 name: env.APP_NAME,
