@@ -648,3 +648,98 @@ describe("manage document", () => {
     });
   }
 });
+
+describe("inheritPermission", () => {
+  describe("collection inheritance", () => {
+    it("should grant access when inheritPermission is true (default)", async () => {
+      const team = await buildTeam();
+      const user = await buildUser({ teamId: team.id });
+      const collection = await buildCollection({
+        teamId: team.id,
+        permission: CollectionPermission.Read,
+      });
+      const doc = await buildDocument({
+        teamId: team.id,
+        collectionId: collection.id,
+        inheritPermission: true,
+      });
+      const document = await Document.findByPk(doc.id, { userId: user.id });
+      const abilities = serialize(user, document);
+      expect(abilities.read).toBeTruthy();
+    });
+
+    it("should deny collection access when inheritPermission is false", async () => {
+      const team = await buildTeam();
+      const user = await buildUser({ teamId: team.id });
+      const collection = await buildCollection({
+        teamId: team.id,
+        permission: CollectionPermission.Read,
+      });
+      const doc = await buildDocument({
+        teamId: team.id,
+        collectionId: collection.id,
+        inheritPermission: false,
+      });
+      const document = await Document.findByPk(doc.id, { userId: user.id });
+      const abilities = serialize(user, document);
+      expect(abilities.read).toEqual(false);
+    });
+
+    it("should allow access via direct membership when inheritPermission is false", async () => {
+      const team = await buildTeam();
+      const user = await buildUser({ teamId: team.id });
+      const collection = await buildCollection({
+        teamId: team.id,
+        permission: CollectionPermission.Read,
+      });
+      const doc = await buildDocument({
+        teamId: team.id,
+        collectionId: collection.id,
+        inheritPermission: false,
+      });
+      await UserMembership.create({
+        userId: user.id,
+        documentId: doc.id,
+        createdById: user.id,
+        permission: DocumentPermission.Read,
+      });
+      const document = await Document.findByPk(doc.id, { userId: user.id });
+      const abilities = serialize(user, document);
+      expect(abilities.read).toBeTruthy();
+    });
+  });
+
+  describe("parent document inheritance", () => {
+    it("should deny sourced membership when inheritPermission is false", async () => {
+      const team = await buildTeam();
+      const user = await buildUser({ teamId: team.id });
+      const parentDoc = await buildDocument({
+        teamId: team.id,
+      });
+      const rootMembership = await UserMembership.create({
+        userId: user.id,
+        documentId: parentDoc.id,
+        createdById: user.id,
+        permission: DocumentPermission.Read,
+      });
+      const childDoc = await buildDocument({
+        teamId: team.id,
+        parentDocumentId: parentDoc.id,
+        inheritPermission: false,
+      });
+      // Simulate a sourced membership from the parent.
+      await UserMembership.create({
+        userId: user.id,
+        documentId: childDoc.id,
+        createdById: user.id,
+        permission: DocumentPermission.Read,
+        sourceId: rootMembership.id,
+      });
+      const document = await Document.findByPk(childDoc.id, {
+        userId: user.id,
+      });
+      const abilities = serialize(user, document);
+      expect(abilities.read).toEqual(false);
+    });
+  });
+});

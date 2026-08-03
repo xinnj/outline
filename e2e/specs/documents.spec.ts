@@ -629,6 +629,19 @@ test.describe("Document CRUD", () => {
       text: "Version 2 content.",
     });
 
+    // Revisions are created asynchronously by an event processor. Ensure the
+    // publish revision exists before loading the history panel, otherwise the
+    // panel's revisions.list can return zero rows and the assertion below fails.
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const revisionsResult = await apiCall(page, basePath, "revisions.list", {
+        documentId: doc.id,
+      });
+      if (revisionsResult.data.length > 0) {
+        break;
+      }
+      await page.waitForTimeout(1000);
+    }
+
     // Navigate to the document's history page. The history panel loads
     // as a sidebar alongside the document content.
     const revisionsPromise = page.waitForResponse(
@@ -660,14 +673,10 @@ test.describe("Document CRUD", () => {
       text: "Original version.",
     });
 
-    // Update the document to create a revision point
-    await apiCall(page, basePath, "documents.update", {
-      id: doc.id,
-      text: "Modified version.",
-    });
-
-    // Revisions are created asynchronously by an event processor. Poll
-    // revisions.list until the previous version appears (up to 10s).
+    // Revisions are created asynchronously by an event processor. Capture the
+    // original revision BEFORE updating the document — otherwise the async
+    // processor can snapshot the already-updated content, and restoring would
+    // return the wrong text. Poll revisions.list until it appears (up to 10s).
     let originalRevision: { id: string } | undefined;
     for (let attempt = 0; attempt < 10; attempt++) {
       const revisionsResult = await apiCall(page, basePath, "revisions.list", {
@@ -684,6 +693,12 @@ test.describe("Document CRUD", () => {
       await page.waitForTimeout(1000);
     }
     expect(originalRevision).toBeTruthy();
+
+    // Update the document to create a revision point
+    await apiCall(page, basePath, "documents.update", {
+      id: doc.id,
+      text: "Modified version.",
+    });
 
     // Restore the original revision
     const { id: revisionId } = originalRevision!;
@@ -708,7 +723,7 @@ test.describe("Document CRUD", () => {
       text: "Version 1 - original content.",
     });
 
-    // Create two more revisions
+    // Update the document to create new content
     await apiCall(page, basePath, "documents.update", {
       id: doc.id,
       text: "Version 2 - first edit.",
@@ -718,11 +733,19 @@ test.describe("Document CRUD", () => {
       text: "Version 3 - second edit.",
     });
 
-    // List revisions
-    const revisionsResult = await apiCall(page, basePath, "revisions.list", {
-      documentId: doc.id,
-    });
-    const revisions = revisionsResult.data;
+    // Revisions are created asynchronously by an event processor. Poll
+    // revisions.list until at least one revision exists (up to 10s).
+    let revisions: { id: string }[] = [];
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const revisionsResult = await apiCall(page, basePath, "revisions.list", {
+        documentId: doc.id,
+      });
+      revisions = revisionsResult.data;
+      if (revisions.length >= 1) {
+        break;
+      }
+      await page.waitForTimeout(1000);
+    }
     expect(revisions.length).toBeGreaterThanOrEqual(1);
 
     // Fetch the latest revision and compare to current document

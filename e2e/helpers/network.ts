@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Page, Request } from "@playwright/test";
 
 interface CapturedRequest {
   url: string;
@@ -74,16 +74,22 @@ export async function interceptApiCalls(page: Page, basePath: string) {
  * Wait for a specific API request to be made. Useful for non-intercepting
  * assertions where you want to verify exact URL and query params.
  *
+ * @param page - the page to listen on.
+ * @param method - the HTTP method to match.
+ * @param urlPattern - a URL substring, RegExp, or predicate over the request.
  * @returns A promise that resolves with the matched request.
  */
 export function waitForApiRequest(
   page: Page,
   method: string,
-  urlPattern: string | RegExp
+  urlPattern: string | RegExp | ((request: Request) => boolean)
 ) {
   return page.waitForRequest((req) => {
     if (req.method() !== method) {
       return false;
+    }
+    if (typeof urlPattern === "function") {
+      return urlPattern(req);
     }
     if (typeof urlPattern === "string") {
       return req.url().includes(urlPattern);

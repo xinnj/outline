@@ -28,7 +28,10 @@ allow(User, "read", Document, (actor, document) =>
         DocumentPermission.Admin,
       ]),
       and(!!document?.isDraft, actor.id === document?.createdById),
-      can(actor, "readDocument", document?.collection)
+      and(
+        document?.inheritPermission !== false,
+        can(actor, "readDocument", document?.collection)
+      )
     )
   )
 );
@@ -94,7 +97,7 @@ allow(User, "update", Document, (actor, document) =>
         DocumentPermission.Admin,
       ]),
       or(
-        can(actor, "updateDocument", document?.collection),
+        and(inheritsPermission(document), can(actor, "updateDocument", document?.collection)),
         and(!!document?.isDraft && actor.id === document?.createdById)
       )
     )
@@ -128,7 +131,7 @@ allow(User, "duplicate", Document, (actor, document) =>
     or(
       includesMembership(document, [DocumentPermission.Admin]),
       and(isTeamAdmin(actor, document), can(actor, "read", document)),
-      can(actor, "updateDocument", document?.collection),
+      and(inheritsPermission(document), can(actor, "updateDocument", document?.collection)),
       !!document?.isDraft && actor.id === document?.createdById
     )
   )
@@ -142,7 +145,7 @@ allow(User, "move", Document, (actor, document) =>
         DocumentPermission.ReadWrite,
         DocumentPermission.Admin,
       ]),
-      can(actor, "updateDocument", document?.collection),
+      and(inheritsPermission(document), can(actor, "updateDocument", document?.collection)),
       and(!!document?.isDraft && actor.id === document?.createdById),
       and(!!document?.isDraft && !document?.collection)
     )
@@ -199,7 +202,7 @@ allow(User, "restore", Document, (actor, document) =>
         DocumentPermission.ReadWrite,
         DocumentPermission.Admin,
       ]),
-      can(actor, "updateDocument", document?.collection),
+      and(inheritsPermission(document), can(actor, "updateDocument", document?.collection)),
       and(!!document?.isDraft && actor.id === document?.createdById)
     )
   )
@@ -238,7 +241,7 @@ allow(User, "unarchive", Document, (actor, document) =>
         DocumentPermission.ReadWrite,
         DocumentPermission.Admin,
       ]),
-      can(actor, "updateDocument", document?.collection),
+      and(inheritsPermission(document), can(actor, "updateDocument", document?.collection)),
       and(!!document?.isDraft && actor.id === document?.createdById)
     )
   )
@@ -272,6 +275,15 @@ allow(User, "unpublish", Document, (user, document) => {
   return user.teamId === document.teamId;
 });
 
+/**
+ * Whether the document should inherit permissions from its parent collection
+ * and/or parent document. When false, only direct (non-sourced) memberships
+ * on the document itself are considered.
+ */
+function inheritsPermission(document: Document | null) {
+  return document?.inheritPermission !== false;
+}
+
 function includesMembership(
   document: Document | null,
   permissions: DocumentPermission[]
@@ -293,13 +305,20 @@ function includesMembership(
   const membershipIds: string[] = [];
 
   for (const membership of document.memberships) {
-    if (permissionSet.has(membership.permission as DocumentPermission)) {
+    if (
+      permissionSet.has(membership.permission as DocumentPermission) &&
+      // When not inheriting, exclude memberships sourced from a parent doc.
+      (document.inheritPermission !== false || !membership.sourceId)
+    ) {
       membershipIds.push(membership.id);
     }
   }
 
   for (const membership of document.groupMemberships) {
-    if (permissionSet.has(membership.permission as DocumentPermission)) {
+    if (
+      permissionSet.has(membership.permission as DocumentPermission) &&
+      (document.inheritPermission !== false || !membership.sourceId)
+    ) {
       membershipIds.push(membership.id);
     }
   }

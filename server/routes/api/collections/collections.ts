@@ -41,6 +41,7 @@ import {
 } from "@server/presenters";
 import type { APIContext } from "@server/types";
 import { RateLimiterStrategy } from "@server/utils/RateLimiter";
+import { filterDocumentStructureForUser } from "@server/utils/documentVisibility";
 import { collectionIndexing } from "@server/utils/indexing";
 import pagination from "../middlewares/pagination";
 import * as T from "./schema";
@@ -143,7 +144,7 @@ router.post(
     const documentStructure = await collection.getCachedDocumentStructure();
 
     ctx.body = {
-      data: documentStructure || [],
+      data: await filterDocumentStructureForUser(documentStructure || [], user),
     };
   }
 );

@@ -162,6 +162,15 @@ export default class Document extends ArchivableModel implements Searchable {
   insightsEnabled: boolean;
 
   /**
+   * Whether the document inherits permissions from its parent collection
+   * and/or parent document. When false, only direct memberships on the
+   * document are considered.
+   */
+  @Field
+  @observable
+  inheritPermission: boolean;
+
+  /**
    * A reference to the template that this document was created from.
    */
   @Field

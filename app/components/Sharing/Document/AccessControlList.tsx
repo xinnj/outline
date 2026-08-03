@@ -1,5 +1,5 @@
 import { observer } from "mobx-react";
-import { MoreIcon, QuestionMarkIcon, UserIcon } from "outline-icons";
+import { CrossIcon, MoreIcon, QuestionMarkIcon, UserIcon } from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled, { useTheme } from "styled-components";
@@ -20,7 +20,8 @@ import useMaxHeight from "~/hooks/useMaxHeight";
 import usePolicy from "~/hooks/usePolicy";
 import useRequest from "~/hooks/useRequest";
 import useStores from "~/hooks/useStores";
-import { Avatar, AvatarSize } from "../../Avatar";
+import { Avatar, GroupAvatar, AvatarSize } from "../../Avatar";
+import ButtonLink from "~/components/ButtonLink";
 import CollectionIcon from "../../Icons/CollectionIcon";
 import Tooltip from "../../Tooltip";
 import { Separator } from "../components";
@@ -67,6 +68,10 @@ export const AccessControlList = observer(
     const can = usePolicy(document);
     const canCollection = usePolicy(collection);
     const documentId = document.id;
+    const collectionGroupMemberships = useCollectionGroupMemberships(
+      collection,
+      document
+    );
 
     const containerRef = React.useRef<HTMLDivElement | null>(null);
     const publicAccessRef = React.useRef<HTMLDivElement | null>(null);
@@ -81,6 +86,13 @@ export const AccessControlList = observer(
       groupMemberships.inDocument(documentId)?.length > 0 ||
       document.members.length > 0;
     const showLoading = !hasMemberships && loading;
+
+    const handleToggleInheritance = async (inherit: boolean) => {
+      await document.save({ inheritPermission: inherit });
+      // Refresh the sidebar tree so hidden/visible document titles update
+      // immediately without a full page reload.
+      await collection?.fetchDocuments({ force: true });
+    };
 
     React.useEffect(() => {
       calcMaxHeight();
@@ -117,37 +129,107 @@ export const AccessControlList = observer(
             </>
           ) : collection && canCollection.readDocument ? (
             <>
-              {collection.permission ? (
-                <ListItem
-                  image={
-                    <Squircle color={theme.accent} size={AvatarSize.Medium}>
-                      <UserIcon color={theme.accentText} size={16} />
-                    </Squircle>
-                  }
-                  title={t("All members")}
-                  subtitle={t("Everyone in the workspace")}
-                  actions={
-                    <AccessTooltip>
-                      {collection?.permission === CollectionPermission.ReadWrite
-                        ? t("Can edit")
-                        : t("Can view")}
-                    </AccessTooltip>
-                  }
-                />
-              ) : usersInCollection ? (
-                <ListItem
-                  image={<CollectionSquircle collection={collection} />}
-                  title={collection.name}
-                  subtitle={t("Everyone in the collection")}
-                  actions={<AccessTooltip>{t("Can view")}</AccessTooltip>}
-                />
-              ) : (
-                <ListItem
-                  image={<Avatar model={user} />}
-                  title={user.name}
-                  subtitle={t("You have full access")}
-                  actions={<AccessTooltip>{t("Can edit")}</AccessTooltip>}
-                />
+              {document.inheritPermission !== false && (
+                <>
+                  {collection.permission ? (
+                    <ListItem
+                      image={
+                        <Squircle
+                          color={theme.accent}
+                          size={AvatarSize.Medium}
+                        >
+                          <UserIcon color={theme.accentText} size={16} />
+                        </Squircle>
+                      }
+                      title={t("All members")}
+                      subtitle={t("Everyone in the workspace")}
+                      actions={
+                        <AccessTooltip>
+                          {collection?.permission ===
+                          CollectionPermission.ReadWrite
+                            ? t("Can edit")
+                            : t("Can view")}
+                        </AccessTooltip>
+                      }
+                    />
+                  ) : usersInCollection ? (
+                    <ListItem
+                      image={<CollectionSquircle collection={collection} />}
+                      title={collection.name}
+                      subtitle={t("Everyone in the collection")}
+                      actions={<AccessTooltip>{t("Can view")}</AccessTooltip>}
+                    />
+                  ) : null}
+                  {collectionGroupMemberships
+                    .filter((m) => m.group)
+                    .map((membership) => (
+                      <ListItem
+                        key={membership.id}
+                        image={
+                          <GroupAvatar
+                            group={membership.group}
+                            backgroundColor={theme.modalBackground}
+                          />
+                        }
+                        title={membership.group.name}
+                        subtitle={t("Inherited from collection")}
+                        actions={
+                          <AccessTooltip>
+                            {membership.permission ===
+                            CollectionPermission.ReadWrite
+                              ? t("Can edit")
+                              : t("Can view")}
+                          </AccessTooltip>
+                        }
+                      />
+                    ))}
+                  {!collection.permission &&
+                    !usersInCollection &&
+                    collectionGroupMemberships.length === 0 && (
+                      <ListItem
+                        image={<Avatar model={user} />}
+                        title={user.name}
+                        subtitle={t("You have full access")}
+                        actions={
+                          <AccessTooltip>{t("Can edit")}</AccessTooltip>
+                        }
+                      />
+                    )}
+                  {can.update && (
+                    <InheritanceToggle>
+                      <ButtonLink onClick={() => handleToggleInheritance(false)}>
+                        {t("Stop inheriting")}
+                      </ButtonLink>
+                    </InheritanceToggle>
+                  )}
+                </>
+              )}
+              {document.inheritPermission === false && (
+                <>
+                  <ListItem
+                    image={
+                      <Squircle
+                        color={theme.slateLight}
+                        size={AvatarSize.Medium}
+                      >
+                        <CrossIcon color={theme.textSecondary} size={16} />
+                      </Squircle>
+                    }
+                    title={t("Not inheriting permissions")}
+                    subtitle={t(
+                      "Only people with explicit access can see this document"
+                    )}
+                  />
+                  {can.update && (
+                    <InheritanceToggle>
+                      <ButtonLink
+                        onClick={() => handleToggleInheritance(true)}
+                      >
+                        {t("Restore inheritance")}
+                      </ButtonLink>
+                    </InheritanceToggle>
+                  )}
+                </>
               )}
               {showLoading ? (
                 <Placeholder />
@@ -245,6 +327,26 @@ const CollectionSquircle = ({ collection }: { collection: Collection }) => {
   );
 };
 
+function useCollectionGroupMemberships(
+  collection?: Collection,
+  document?: Document
+) {
+  const { groupMemberships } = useStores();
+  const { request } = useRequest(() =>
+    groupMemberships.fetchPage({ collectionId: collection!.id })
+  );
+
+  React.useEffect(() => {
+    if (collection && document?.inheritPermission !== false) {
+      void request();
+    }
+  }, [collection, document?.inheritPermission]);
+
+  return collection
+    ? groupMemberships.inCollection(collection.id)
+    : [];
+}
+
 function useUsersInCollection(collection?: Collection) {
   const { users, memberships } = useStores();
   const { request } = useRequest(() =>
@@ -277,4 +379,9 @@ const Sticky = styled.div`
 const ScrollableContainer = styled(Scrollable)`
   padding: 12px 24px;
   margin: -12px -24px;
+`;
+
+const InheritanceToggle = styled.div`
+  padding: 8px 0;
+  text-align: center;
 `;

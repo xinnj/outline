@@ -1,5 +1,5 @@
-import type { TextEditMode } from "@shared/types";
-import { Event, Document } from "@server/models";
+import { DocumentPermission, type TextEditMode } from "@shared/types";
+import { Event, Document, UserMembership } from "@server/models";
 import { DocumentHelper } from "@server/models/helpers/DocumentHelper";
 import { TextHelper } from "@server/models/helpers/TextHelper";
 import type { APIContext } from "@server/types";
@@ -25,6 +25,8 @@ type Props = {
   fullWidth?: boolean;
   /** Whether insights should be visible on the document */
   insightsEnabled?: boolean;
+  /** Whether the document inherits permissions from parent collection/doc */
+  inheritPermission?: boolean;
   /** The edit mode: "replace", "append", "prepend", or "patch" */
   editMode?: TextEditMode;
   /** The markdown text to find when using "patch" edit mode */
@@ -54,6 +56,7 @@ export default async function documentUpdater(
     templateId,
     fullWidth,
     insightsEnabled,
+    inheritPermission,
     editMode,
     findText,
     publish,
@@ -85,6 +88,30 @@ export default async function documentUpdater(
   }
   if (insightsEnabled !== undefined) {
     document.insightsEnabled = insightsEnabled;
+  }
+  if (inheritPermission !== undefined) {
+    // When stopping inheritance, ensure the acting user has an Admin
+    // membership on the document so they don't lock themselves out.
+    if (inheritPermission === false && document.inheritPermission !== false) {
+      const existing = await UserMembership.findOne({
+        where: { documentId: document.id, userId: user.id },
+        transaction,
+      });
+
+      if (!existing) {
+        await UserMembership.create(
+          {
+            documentId: document.id,
+            userId: user.id,
+            permission: DocumentPermission.Admin,
+            createdById: user.id,
+          },
+          { transaction }
+        );
+      }
+    }
+
+    document.inheritPermission = inheritPermission;
   }
   if (text !== undefined) {
     document = DocumentHelper.applyMarkdownToDocument(

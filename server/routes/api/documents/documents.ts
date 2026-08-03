@@ -68,6 +68,7 @@ import AttachmentHelper from "@server/models/helpers/AttachmentHelper";
 import { DocumentHelper } from "@server/models/helpers/DocumentHelper";
 import { ProsemirrorHelper } from "@server/models/helpers/ProsemirrorHelper";
 import SearchProviderManager from "@server/utils/SearchProviderManager";
+import { filterDocumentStructureForUser } from "@server/utils/documentVisibility";
 import { TextHelper } from "@server/models/helpers/TextHelper";
 import { authorize, cannot } from "@server/policies";
 import {
@@ -789,7 +790,10 @@ router.post(
       const collection = await Collection.findByPk(document.collectionId, {
         includeDocumentStructure: true,
       });
-      documentTree = collection?.getDocumentTree(document.id) ?? undefined;
+      const subtree = collection?.getDocumentTree(document.id);
+      documentTree = subtree
+        ? (await filterDocumentStructureForUser([subtree], user))[0]
+        : undefined;
     }
 
     ctx.body = {

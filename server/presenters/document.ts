@@ -112,6 +112,7 @@ async function presentDocument(
     res.collaboratorIds = document.collaboratorIds ?? [];
     res.templateId = document.templateId;
     res.insightsEnabled = document.insightsEnabled;
+    res.inheritPermission = document.inheritPermission;
     res.popularityScore = document.popularityScore;
     if (options.includeCommentCount) {
       res.commentCount = await document.commentCount;

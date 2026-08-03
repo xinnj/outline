@@ -103,7 +103,7 @@ export const getDocumentPermission = async ({
   const permissions: DocumentPermission[] = [];
 
   const collection = document?.collection;
-  if (collection) {
+  if (collection && document?.inheritPermission !== false) {
     const collectionPermissions = orderBy(
       compact([
         collection.permission,
@@ -138,6 +138,12 @@ export const getDocumentPermission = async ({
   const groupMembershipWhere: WhereOptions<GroupMembership> = {
     documentId,
   };
+
+  // When not inheriting, exclude memberships sourced from a parent document.
+  if (document?.inheritPermission === false) {
+    userMembershipWhere.sourceId = { [Op.is]: null };
+    groupMembershipWhere.sourceId = { [Op.is]: null };
+  }
 
   if (skipMembershipId) {
     userMembershipWhere.id = { [Op.ne]: skipMembershipId };

@@ -577,3 +577,164 @@ export async function updateProfile(
   const result = await apiCall(page, basePath, "users.update", options);
   return result.data;
 }
+
+/**
+ * Makes an authenticated API call and returns the raw Response without
+ * throwing on non-2xx status codes. Used to assert 400/403 responses.
+ */
+export async function apiCallRaw(
+  page: Page,
+  basePath: string,
+  action: string,
+  body: Record<string, unknown> = {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  const csrfToken = await getCsrfToken(page);
+  const cookies = await page.context().cookies();
+  const accessToken = cookies.find((c) => c.name === "accessToken")?.value;
+  const cookieHeader = [
+    `csrfToken=${csrfToken}`,
+    accessToken ? `accessToken=${accessToken}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+
+  return page.request.post(`${basePath}/api/${action}`, {
+    headers: {
+      cookie: cookieHeader,
+      "x-csrf-token": csrfToken,
+      "content-type": "application/json",
+    },
+    data: body,
+  });
+}
+
+/**
+ * Adds a user to a collection. Returns the created membership.
+ */
+export async function addUserToCollection(
+  page: Page,
+  basePath: string,
+  collectionId: string,
+  userId: string,
+  permission = "read"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<Record<string, any>> {
+  const result = await apiCall(page, basePath, "collections.add_user", {
+    id: collectionId,
+    userId,
+    permission,
+  });
+  return result.data;
+}
+
+/**
+ * Removes a user from a collection.
+ */
+export async function removeUserFromCollection(
+  page: Page,
+  basePath: string,
+  collectionId: string,
+  userId: string
+): Promise<void> {
+  await apiCall(page, basePath, "collections.remove_user", {
+    id: collectionId,
+    userId,
+  });
+}
+
+/**
+ * Adds a user directly to a document. Returns the created membership.
+ */
+export async function addUserToDocument(
+  page: Page,
+  basePath: string,
+  documentId: string,
+  userId: string,
+  permission = "read"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<Record<string, any>> {
+  const result = await apiCall(page, basePath, "documents.add_user", {
+    id: documentId,
+    userId,
+    permission,
+  });
+  return result.data;
+}
+
+/**
+ * Removes a user from a document.
+ */
+export async function removeUserFromDocument(
+  page: Page,
+  basePath: string,
+  documentId: string,
+  userId: string
+): Promise<void> {
+  await apiCall(page, basePath, "documents.remove_user", {
+    id: documentId,
+    userId,
+  });
+}
+
+/**
+ * Finds the team's system-managed "Default" group. The group name is reserved
+ * and cannot be renamed, so matching by name is reliable.
+ */
+export async function findDefaultGroup(
+  page: Page,
+  basePath: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<Record<string, any>> {
+  const result = await apiCall(page, basePath, "groups.list", {});
+  const group = result.data.groups.find(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (g: Record<string, any>) => g.name === "Default"
+  );
+  if (!group) {
+    throw new Error('No "Default" group found for the team');
+  }
+  return group;
+}
+
+/**
+ * Returns the list of user IDs in a group.
+ */
+export async function getGroupMembers(
+  page: Page,
+  basePath: string,
+  groupId: string
+): Promise<string[]> {
+  const result = await apiCall(page, basePath, "groups.memberships", {
+    id: groupId,
+  });
+  return result.data.users.map((u: { id: string }) => u.id);
+}
+
+/**
+ * Changes a user's role. Admin only.
+ */
+export async function updateUserRole(
+  page: Page,
+  basePath: string,
+  userId: string,
+  role: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<Record<string, any>> {
+  const result = await apiCall(page, basePath, "users.update_role", {
+    id: userId,
+    role,
+  });
+  return result.data;
+}
+
+/**
+ * Deletes a collection by ID.
+ */
+export async function deleteCollection(
+  page: Page,
+  basePath: string,
+  collectionId: string
+): Promise<void> {
+  await apiCall(page, basePath, "collections.delete", { id: collectionId });
+}

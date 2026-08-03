@@ -331,6 +331,10 @@ class Document extends ArchivableModel<
   @Column(DataType.BOOLEAN)
   insightsEnabled: boolean;
 
+  @Default(true)
+  @Column(DataType.BOOLEAN)
+  inheritPermission: boolean;
+
   /** The version of the editor last used to edit this document. */
   @SimpleLength({
     max: 255,

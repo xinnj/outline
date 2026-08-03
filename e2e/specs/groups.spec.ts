@@ -7,6 +7,10 @@ import {
   addUserToGroup,
   removeUserFromGroup,
   apiCall,
+  apiCallRaw,
+  findDefaultGroup,
+  getGroupMembers,
+  updateUserRole,
 } from "../helpers/api";
 
 function resolveBasePath(): string {
@@ -210,5 +214,156 @@ test.describe("Groups", () => {
 
     // Cleanup
     await deleteGroup(page, basePath, group.id);
+  });
+
+  test.describe("Default group", () => {
+    let adminUserId: string;
+
+    test.beforeAll(async () => {
+      const listResult = await apiCall(page, basePath, "users.list", {});
+      const adminUser = listResult.data.find(
+        (u: { role: string }) => u.role === "admin"
+      );
+      adminUserId = adminUser?.id ?? listResult.data[0].id;
+    });
+
+    test("should list a group named Default", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      expect(group.name).toBe("Default");
+    });
+
+    test("should include the admin user", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      const members = await getGroupMembers(page, basePath, group.id);
+      expect(members).toContain(adminUserId);
+    });
+
+    test("should not allow renaming", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      const res = await apiCallRaw(page, basePath, "groups.update", {
+        id: group.id,
+        name: `Renamed ${Date.now()}`,
+      });
+      expect(res.status()).toBe(400);
+    });
+
+    test("should not allow deletion", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      const res = await apiCallRaw(page, basePath, "groups.delete", {
+        id: group.id,
+      });
+      expect(res.status()).toBe(403);
+    });
+
+    test("should not allow manually adding a member", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      const res = await apiCallRaw(page, basePath, "groups.add_user", {
+        id: group.id,
+        userId: adminUserId,
+      });
+      expect(res.status()).toBe(400);
+    });
+
+    test("should not allow manually removing a member", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      const members = await getGroupMembers(page, basePath, group.id);
+      expect(members.length).toBeGreaterThan(0);
+      const res = await apiCallRaw(page, basePath, "groups.remove_user", {
+        id: group.id,
+        userId: members[0],
+      });
+      expect(res.status()).toBe(400);
+    });
+
+    test("should allow updating non-name fields", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      // Read the current value first so the restore below puts the field back
+      // to its prior state instead of assuming it was false.
+      const before = await apiCall(page, basePath, "groups.info", {
+        id: group.id,
+      });
+      const result = await apiCall(page, basePath, "groups.update", {
+        id: group.id,
+        disableMentions: true,
+      });
+      expect(result.data.id).toBe(group.id);
+      // Restore the field so the change does not persist beyond this test.
+      await apiCall(page, basePath, "groups.update", {
+        id: group.id,
+        disableMentions: before.data.disableMentions,
+      });
+    });
+  });
+
+  test.describe("Default group cross-user", () => {
+    let viewerContext: BrowserContext;
+    let viewerPage: Page;
+    let viewerUserId: string;
+
+    test.beforeAll(async ({ browser }) => {
+      const auth = await loginViaOIDC(browser, basePath, {
+        username: process.env.E2E_VIEWER_USERNAME,
+        password: process.env.E2E_VIEWER_PASSWORD,
+      });
+      viewerContext = auth.context;
+      viewerPage = auth.page;
+
+      // users.info without an id returns the current user.
+      const viewerInfo = await apiCall(viewerPage, basePath, "users.info", {});
+      viewerUserId = viewerInfo.data.id;
+    });
+
+    test.afterAll(async () => {
+      await viewerContext.close();
+    });
+
+    test("should include the viewer user", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      const members = await getGroupMembers(page, basePath, group.id);
+      expect(members).toContain(viewerUserId);
+    });
+
+    test("should remove the viewer on demotion and re-add on promotion", async () => {
+      const group = await findDefaultGroup(page, basePath);
+      const isMember = async () =>
+        (await getGroupMembers(page, basePath, group.id)).includes(
+          viewerUserId
+        );
+
+      try {
+        // Demote viewer -> guest. The processor runs asynchronously via Bull,
+        // so poll groups.memberships until the change lands (up to ~20s).
+        await updateUserRole(page, basePath, viewerUserId, "guest");
+
+        for (let attempt = 0; attempt < 20 && (await isMember()); attempt++) {
+          await page.waitForTimeout(1000);
+        }
+        expect(await isMember()).toBe(false);
+
+        // Promote guest -> viewer.
+        await updateUserRole(page, basePath, viewerUserId, "viewer");
+
+        for (let attempt = 0; attempt < 20 && !(await isMember()); attempt++) {
+          await page.waitForTimeout(1000);
+        }
+        expect(await isMember()).toBe(true);
+      } finally {
+        // Restore the viewer to a clean state even if an assertion above
+        // failed, so a viewer left behind as a guest does not break the next
+        // run's "should include the viewer user" test.
+        const info = await apiCall(page, basePath, "users.info", {
+          id: viewerUserId,
+        });
+        if (info.data.role === "guest") {
+          await updateUserRole(page, basePath, viewerUserId, "viewer");
+        }
+
+        // Membership may lag the promotion due to the async processor, so poll
+        // until the viewer is a member again (up to ~10s).
+        for (let attempt = 0; attempt < 10 && !(await isMember()); attempt++) {
+          await page.waitForTimeout(1000);
+        }
+      }
+    });
   });
 });

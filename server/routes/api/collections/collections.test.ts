@@ -1944,3 +1944,77 @@ describe("#collections.restore", () => {
     expect(body.data.index).not.toBe("P");
   });
 });
+
+describe("#collections.documents", () => {
+  it("should hide a stopped-inheritance document from a user without membership", async () => {
+    const admin = await buildAdmin();
+    const user = await buildUser({ teamId: admin.teamId });
+    const collection = await buildCollection({
+      teamId: admin.teamId,
+      permission: CollectionPermission.Read,
+    });
+    await buildDocument({
+      teamId: admin.teamId,
+      collectionId: collection.id,
+      userId: admin.id,
+      inheritPermission: false,
+    });
+
+    const res = await server.post("/api/collections.documents", user, {
+      body: { id: collection.id },
+    });
+    const body = await res.json();
+    expect(res.status).toEqual(200);
+    expect(body.data).toEqual([]);
+  });
+
+  it("should include a stopped-inheritance document once the user has an explicit membership", async () => {
+    const admin = await buildAdmin();
+    const user = await buildUser({ teamId: admin.teamId });
+    const collection = await buildCollection({
+      teamId: admin.teamId,
+      permission: CollectionPermission.Read,
+    });
+    const document = await buildDocument({
+      teamId: admin.teamId,
+      collectionId: collection.id,
+      userId: admin.id,
+      inheritPermission: false,
+    });
+    await UserMembership.create({
+      userId: user.id,
+      documentId: document.id,
+      createdById: admin.id,
+      permission: CollectionPermission.Read,
+    });
+
+    const res = await server.post("/api/collections.documents", user, {
+      body: { id: collection.id },
+    });
+    const body = await res.json();
+    expect(res.status).toEqual(200);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].id).toBe(document.id);
+  });
+
+  it("should include inheriting documents for any member of a readable collection", async () => {
+    const admin = await buildAdmin();
+    const user = await buildUser({ teamId: admin.teamId });
+    const collection = await buildCollection({
+      teamId: admin.teamId,
+      permission: CollectionPermission.Read,
+    });
+    await buildDocument({
+      teamId: admin.teamId,
+      collectionId: collection.id,
+      userId: admin.id,
+    });
+
+    const res = await server.post("/api/collections.documents", user, {
+      body: { id: collection.id },
+    });
+    const body = await res.json();
+    expect(res.status).toEqual(200);
+    expect(body.data).toHaveLength(1);
+  });
+});

@@ -1,8 +1,8 @@
 # E2E Coverage Status
 
-> **Summary:** 85 covered · 1 partial · 18 not covered (104 total) · 82% covered
+> **Summary:** 90 covered · 1 partial · 18 not covered (109 total) · 83% covered
 >
-> **Spec files:** `auth.spec.ts` (4 tests), `collaboration.spec.ts` (2 tests), `collections.spec.ts` (9 tests), `comments.spec.ts` (5 tests), `documents.spec.ts` (15 tests), `groups.spec.ts` (5 tests), `home.spec.ts` (6 tests), `members.spec.ts` (6 tests), `search.spec.ts` (3 tests), `settings.spec.ts` (6 tests), `sharing.spec.ts` (8 tests), `stars.spec.ts` (4 tests), `subpath.spec.ts` (8 tests), `templates.spec.ts` (2 tests)
+> **Spec files:** `auth.spec.ts` (4 tests), `collaboration.spec.ts` (2 tests), `collections.spec.ts` (9 tests), `comments.spec.ts` (5 tests), `documents.spec.ts` (15 tests), `groups.spec.ts` (14 tests), `home.spec.ts` (6 tests), `inheritance.spec.ts` (4 tests), `members.spec.ts` (6 tests), `search.spec.ts` (3 tests), `settings.spec.ts` (6 tests), `sharing.spec.ts` (8 tests), `stars.spec.ts` (4 tests), `subpath.spec.ts` (10 tests), `templates.spec.ts` (2 tests)
 
 ---
 
@@ -112,6 +112,14 @@
 - [x] Delete group — `groups.spec.ts` — 🟡 medium
 - [x] Add members to group — `groups.spec.ts` — 🟡 medium
 - [x] Remove members from group — `groups.spec.ts` — 🟡 medium
+- [x] Default group protections (no rename/delete/manual membership) — `groups.spec.ts` — 🔴 high
+- [x] Default group membership syncs on role change — `groups.spec.ts` — 🔴 high
+
+## Document access inheritance
+
+- [x] Documents inherit permissions from the collection by default — `inheritance.spec.ts` — 🔴 high
+- [x] Disabling inheritance restricts access to direct members — `inheritance.spec.ts` — 🔴 high
+- [x] UI toggle to stop/restore inheritance — `inheritance.spec.ts` — 🟡 medium
 
 ## Team Settings
 
@@ -200,6 +208,15 @@ These helpers are ready for use in new spec files:
 | `deleteGroup` | `helpers/api.ts` | API: `groups.delete` |
 | `addUserToGroup` | `helpers/api.ts` | API: `groups.add_user` |
 | `removeUserFromGroup` | `helpers/api.ts` | API: `groups.remove_user` |
+| `apiCallRaw` | `helpers/api.ts` | API: returns raw Response (non-2xx assertions) |
+| `addUserToCollection` | `helpers/api.ts` | API: `collections.add_user` |
+| `removeUserFromCollection` | `helpers/api.ts` | API: `collections.remove_user` |
+| `addUserToDocument` | `helpers/api.ts` | API: `documents.add_user` |
+| `removeUserFromDocument` | `helpers/api.ts` | API: `documents.remove_user` |
+| `findDefaultGroup` | `helpers/api.ts` | API: `groups.list` (name = "Default") |
+| `getGroupMembers` | `helpers/api.ts` | API: `groups.memberships` |
+| `updateUserRole` | `helpers/api.ts` | API: `users.update_role` |
+| `deleteCollection` | `helpers/api.ts` | API: `collections.delete` |
 | `createTemplate` | `helpers/api.ts` | API: `templates.create` |
 | `deleteTemplate` | `helpers/api.ts` | API: `templates.delete` |
 | `createApiKey` | `helpers/api.ts` | API: `apiKeys.create` |

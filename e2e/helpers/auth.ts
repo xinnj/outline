@@ -6,18 +6,26 @@ import type { Browser, BrowserContext, Page } from "@playwright/test";
  * Flow: app root → login page → click OIDC button → Keycloak login form →
  * fill credentials → submit → redirect back to Outline home.
  *
- * Requires E2E_ADMIN_USERNAME and E2E_ADMIN_PASSWORD env vars.
+ * Uses E2E_ADMIN_USERNAME and E2E_ADMIN_PASSWORD env vars by default; explicit
+ * credentials may be passed via the `options` argument.
  */
 export async function loginViaOIDC(
   browser: Browser,
-  basePath: string
+  basePath: string,
+  options: { username?: string; password?: string } = {}
 ): Promise<{ context: BrowserContext; page: Page }> {
   // Strip surrounding quotes that may come from .env file shell-style values
-  const username = process.env.E2E_ADMIN_USERNAME?.replace(/^["']|["']$/g, "");
-  const password = process.env.E2E_ADMIN_PASSWORD?.replace(/^["']|["']$/g, "");
+  const username = (options.username ?? process.env.E2E_ADMIN_USERNAME)?.replace(
+    /^["']|["']$/g,
+    ""
+  );
+  const password = (options.password ?? process.env.E2E_ADMIN_PASSWORD)?.replace(
+    /^["']|["']$/g,
+    ""
+  );
   if (!username || !password) {
     throw new Error(
-      "E2E_ADMIN_USERNAME and E2E_ADMIN_PASSWORD env vars are required for OIDC login."
+      "E2E admin or viewer credentials are required for OIDC login."
     );
   }
 
