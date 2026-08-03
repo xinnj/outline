@@ -10,7 +10,7 @@ import {
   DataType,
   Scopes,
 } from "sequelize-typescript";
-import { GroupValidation } from "@shared/validations";
+import { GroupValidation, DEFAULT_GROUP_NAME } from "@shared/validations";
 import ExternalGroup from "./ExternalGroup";
 import GroupMembership from "./GroupMembership";
 import GroupUser from "./GroupUser";
@@ -85,6 +85,38 @@ class Group extends ParanoidModel<
 
   @Column(DataType.BOOLEAN)
   disableMentions: boolean;
+
+  @Column({ type: DataType.BOOLEAN, defaultValue: false })
+  isDefault: boolean;
+
+  /**
+   * Find the default group for a team. Creates it if it does not
+   * exist.
+   *
+   * @param teamId The team to find or create the default group for.
+   * @param createdById The user to attribute creation to.
+   * @returns The default group for the team.
+   */
+  static async findDefaultGroup(
+    teamId: string,
+    createdById: string
+  ): Promise<Group> {
+    const [group] = await this.findOrCreate({
+      where: {
+        teamId,
+        name: DEFAULT_GROUP_NAME,
+      },
+      defaults: {
+        teamId,
+        createdById,
+        isDefault: true,
+        description:
+          "Automatically managed group containing all workspace members.",
+      },
+    });
+
+    return group;
+  }
 
   static filterByMember(userId: string | undefined) {
     return userId

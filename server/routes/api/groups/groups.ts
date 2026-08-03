@@ -286,6 +286,12 @@ router.post(
     });
     authorize(user, "update", group);
 
+    if (group.isDefault && ctx.input.body.name !== undefined) {
+      throw ValidationError(
+        "The Default group cannot be renamed"
+      );
+    }
+
     if (
       group.externalGroups?.length &&
       ctx.input.body.name !== undefined &&
@@ -324,6 +330,12 @@ router.post(
       },
     });
     authorize(user, "delete", group);
+
+    if (group.isDefault) {
+      throw ValidationError(
+        "The Default group cannot be deleted"
+      );
+    }
 
     await group.destroyWithCtx(ctx);
 
@@ -467,6 +479,12 @@ router.post(
     });
     authorize(actor, "update", group);
 
+    if (group.isDefault) {
+      throw ValidationError(
+        "The Default group is managed automatically and its membership cannot be modified manually"
+      );
+    }
+
     if (group.externalGroups?.length) {
       throw ValidationError(
         "This group is managed by an external provider and its membership cannot be modified"
@@ -535,6 +553,12 @@ router.post(
       ],
     });
     authorize(actor, "update", group);
+
+    if (group.isDefault) {
+      throw ValidationError(
+        "The Default group is managed automatically and its membership cannot be modified manually"
+      );
+    }
 
     if (group.externalGroups?.length) {
       throw ValidationError(

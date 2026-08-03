@@ -876,3 +876,91 @@ describe("#groups.update_user", () => {
     expect(res.status).toEqual(404);
   });
 });
+
+describe("Default default group", () => {
+  describe("#groups.delete", () => {
+    it("should prevent deleting the Default group", async () => {
+      const admin = await buildAdmin();
+      const group = await buildGroup({
+        teamId: admin.teamId,
+        name: "Default",
+        isDefault: true,
+      });
+
+      const res = await server.post("/api/groups.delete", admin, {
+        body: { id: group.id },
+      });
+      // Policy check rejects before the explicit validation; both prevent
+      // deletion but the policy returns 403.
+      expect(res.status).toEqual(403);
+    });
+  });
+
+  describe("#groups.update", () => {
+    it("should prevent renaming the Default group", async () => {
+      const admin = await buildAdmin();
+      const group = await buildGroup({
+        teamId: admin.teamId,
+        name: "Default",
+        isDefault: true,
+      });
+
+      const res = await server.post("/api/groups.update", admin, {
+        body: { id: group.id, name: "Renamed" },
+      });
+      expect(res.status).toEqual(400);
+    });
+
+    it("should allow updating non-name fields on the Default group", async () => {
+      const admin = await buildAdmin();
+      const group = await buildGroup({
+        teamId: admin.teamId,
+        name: "Default",
+        isDefault: true,
+        disableMentions: false,
+      });
+
+      const res = await server.post("/api/groups.update", admin, {
+        body: { id: group.id, disableMentions: true },
+      });
+      expect(res.status).toEqual(200);
+
+      await group.reload();
+      expect(group.disableMentions).toBe(true);
+    });
+  });
+
+  describe("#groups.add_user", () => {
+    it("should prevent manually adding users to the Default group", async () => {
+      const admin = await buildAdmin();
+      const group = await buildGroup({
+        teamId: admin.teamId,
+        name: "Default",
+        isDefault: true,
+      });
+      const user = await buildUser({ teamId: admin.teamId });
+
+      const res = await server.post("/api/groups.add_user", admin, {
+        body: { id: group.id, userId: user.id },
+      });
+      expect(res.status).toEqual(400);
+    });
+  });
+
+  describe("#groups.remove_user", () => {
+    it("should prevent manually removing users from the Default group", async () => {
+      const admin = await buildAdmin();
+      const group = await buildGroup({
+        teamId: admin.teamId,
+        name: "Default",
+        isDefault: true,
+      });
+      const user = await buildUser({ teamId: admin.teamId });
+
+      const res = await server.post("/api/groups.remove_user", admin, {
+        body: { id: group.id, userId: user.id },
+      });
+      expect(res.status).toEqual(400);
+    });
+  });
+});

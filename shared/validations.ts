@@ -73,6 +73,9 @@ export const GroupValidation = {
   maxDescriptionLength: 2000,
 };
 
+/** Name reserved for the system-managed group that contains all workspace members. */
+export const DEFAULT_GROUP_NAME = "Default";
+
 export const ImportValidation = {
   /** The maximum length of the import name */
   maxNameLength: 100,

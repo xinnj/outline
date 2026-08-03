@@ -2,7 +2,7 @@ import path from "node:path";
 import { readFile } from "fs-extra";
 import invariant from "invariant";
 import { toError, errToString } from "@shared/utils/error";
-import { CollectionPermission, UserRole } from "@shared/types";
+import { CollectionPermission, GroupPermission, UserRole } from "@shared/types";
 import env from "@server/env";
 import {
   InvalidAuthenticationError,
@@ -16,6 +16,8 @@ import {
   Collection,
   Document,
   Event,
+  Group,
+  GroupUser,
   Team,
 } from "@server/models";
 import AuthenticationHelper from "@server/models/helpers/AuthenticationHelper";
@@ -244,6 +246,46 @@ async function accountProvisioner(
           `Role updated via provider mapping for user ${user.id}`,
           { previousRole, newRole }
         );
+
+        // Sync "Default" default group membership inline when the role
+        // crosses the guest boundary. The async event processor also handles
+        // this, but inline ensures immediate consistency.
+        const wasGuest = previousRole === UserRole.Guest;
+        const isGuest = newRole === UserRole.Guest;
+
+        if (wasGuest && !isGuest) {
+          try {
+            const defaultGroup = await Group.findDefaultGroup(
+              team.id,
+              user.id
+            );
+            await GroupUser.findOrCreate({
+              where: { groupId: defaultGroup.id, userId: user.id },
+              defaults: { createdById: user.id, permission: GroupPermission.Member },
+            });
+          } catch (err) {
+            Logger.warn(
+              `Could not add user ${user.id} to "Default" group after role promotion`,
+              { ...toError(err), label: "authentication" }
+            );
+          }
+        } else if (!wasGuest && isGuest) {
+          try {
+            const defaultGroup = await Group.findOne({
+              where: { teamId: team.id, isDefault: true },
+            });
+            if (defaultGroup) {
+              await GroupUser.destroy({
+                where: { groupId: defaultGroup.id, userId: user.id },
+              });
+            }
+          } catch (err) {
+            Logger.warn(
+              `Could not remove user ${user.id} from "Default" group after guest demotion`,
+              { ...toError(err), label: "authentication" }
+            );
+          }
+        }
       } catch (err) {
         // The User model enforces "at least one admin per team". If demotion
         // would violate that constraint, skip the role update and warn so
