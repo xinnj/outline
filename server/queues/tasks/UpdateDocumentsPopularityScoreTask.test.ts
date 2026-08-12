@@ -12,8 +12,6 @@ const props = {
   },
 };
 
-vi.setConfig({ testTimeout: 30000 });
-
 const dayStr = (d: Date) => d.toISOString().slice(0, 10);
 
 describe("UpdateDocumentsPopularityScoreTask", () => {

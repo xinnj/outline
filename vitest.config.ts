@@ -54,6 +54,13 @@ const aliasesAsArray = Object.entries(aliases).map(([find, replacement]) => ({
 
 const fileMockAlias = { find: /\.(gif|ttf|eot|svg)$/, replacement: fileMock };
 
+// `testTimeout`/`hookTimeout` are project-level options. With `projects`, they
+// are not inherited from the root `test` block, so they must be set per project.
+const timeouts = {
+  testTimeout: 30000,
+  hookTimeout: 30000,
+};
+
 export default defineConfig({
   ...sharedConfig,
   test: {
@@ -65,6 +72,7 @@ export default defineConfig({
       {
         ...sharedConfig,
         test: {
+          ...timeouts,
           name: "server",
           globals: true,
           environment: "node",
@@ -82,6 +90,7 @@ export default defineConfig({
         ...sharedConfig,
         resolve: { alias: [fileMockAlias, ...aliasesAsArray] },
         test: {
+          ...timeouts,
           name: "app",
           globals: true,
           environment: "jsdom",
@@ -95,6 +104,7 @@ export default defineConfig({
       {
         ...sharedConfig,
         test: {
+          ...timeouts,
           name: "shared-node",
           globals: true,
           environment: "node",
@@ -106,6 +116,7 @@ export default defineConfig({
         ...sharedConfig,
         resolve: { alias: [fileMockAlias, ...aliasesAsArray] },
         test: {
+          ...timeouts,
           name: "shared-jsdom",
           globals: true,
           environment: "jsdom",
