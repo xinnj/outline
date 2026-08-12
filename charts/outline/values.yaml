@@ -59,6 +59,12 @@ outline:
   # Optional CDN URL for static assets
   cdnUrl: ""
 
+  # Optional: pin SECRET_KEY (64 hex chars, e.g. `openssl rand -hex 32`) and
+  # UTILS_SECRET for reproducibility. Generated once and preserved on first
+  # install when left empty.
+  secretKey: ""
+  utilsSecret: ""
+
   # OIDC authentication (at least one provider required)
   oidc:
     clientId: ""

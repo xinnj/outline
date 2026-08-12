@@ -99,7 +99,53 @@ outline:
 helm upgrade outline . --reuse-values
 ```
 
-The chart preserves the `SECRET_KEY` across upgrades. Do not delete the Secret between upgrades — it contains the encryption key for stored data.
+The chart generates `SECRET_KEY` and `UTILS_SECRET` once and preserves them across
+upgrades and re-installs. These keys encrypt database columns (user JWT secrets, OAuth
+client secrets, integration tokens, etc.) and sign URLs. If they change, stored data
+cannot be decrypted and existing sessions and links break.
+
+### Deleting and re-installing
+
+The generated Secret is annotated with `helm.sh/resource-policy: keep`, so
+`helm uninstall` leaves it behind. Re-installing with the **same release name** reuses
+the existing keys and works against an existing database.
+
+> **Upgrading an existing installation:** a release created before this behavior was
+> introduced has a Secret without the `keep` annotation, and `helm upgrade` will not add
+> it (the chart skips the Secret when it already exists). Apply the annotation once before
+> deleting the release so the key survives:
+>
+> ```bash
+> kubectl annotate secret outline-outline-secret helm.sh/resource-policy=keep
+> ```
+
+To fully remove the keys on a
+final teardown, delete the Secret manually (named `<release>-outline-secret` by default):
+
+```bash
+kubectl delete secret outline-outline-secret
+```
+
+### Pinning the keys explicitly
+
+For reproducibility (e.g. GitOps or migrating between clusters), set the keys in your
+values instead of letting the chart generate them:
+
+```yaml
+outline:
+  # SECRET_KEY must be exactly 64 hexadecimal characters
+  secretKey: "<64-hex-chars>" # generate with: openssl rand -hex 32
+  utilsSecret: "<random-string>"
+```
+
+These overrides only apply when the generated Secret does not already exist; changing them
+on a live install is ignored so the key is never rotated out from under encrypted data.
+
+### Recovering from a lost key
+
+If the key is lost but the database still holds encrypted data, run
+`server/scripts/reset-encrypted-data.ts` to rotate/reset the encrypted tokens. This
+invalidates existing sessions and integration credentials.
 
 ## Database Migrations
 

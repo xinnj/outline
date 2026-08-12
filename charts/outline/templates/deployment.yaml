@@ -1,3 +1,4 @@
+{{- $hasUserSecrets := or (and .Values.outline.oidc.clientId .Values.outline.oidc.clientSecret) (and .Values.outline.smtp.enabled .Values.outline.smtp.password) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -58,6 +59,10 @@ spec:
                 name: {{ include "outline.fullname" . }}
             - secretRef:
                 name: {{ include "outline.fullname" . }}-secret
+            {{- if $hasUserSecrets }}
+            - secretRef:
+                name: {{ include "outline.fullname" . }}-user-secret
+            {{- end }}
           ports:
             - containerPort: {{ .Values.outline.port }}
               name: http
