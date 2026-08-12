@@ -21,8 +21,8 @@ data:
   OIDC_DISPLAY_NAME: {{ .Values.outline.oidc.displayName | quote }}
   OIDC_SCOPES: {{ .Values.outline.oidc.scopes | quote }}
   OIDC_LOGOUT_URI: {{ .Values.outline.oidc.logoutUrl | quote }}
-  OIDC_ADMIN_CLAIM: {{ .Values.outline.oidc.adminClaim | quote }}
-  OIDC_ADMIN_CLAIM_VALUE: {{ .Values.outline.oidc.adminClaimValue | quote }}
+  OIDC_GROUP_CLAIM: {{ .Values.outline.oidc.groupClaim | quote }}
+  OIDC_ADMIN_GROUP: {{ .Values.outline.oidc.adminGroup | quote }}
   {{- end }}
 
   DEFAULT_USER_ROLE: {{ .Values.outline.defaultUserRole | quote }}

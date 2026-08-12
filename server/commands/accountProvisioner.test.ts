@@ -2,10 +2,15 @@ import { faker } from "@faker-js/faker";
 import { randomUUID } from "node:crypto";
 import { UserRole } from "@shared/types";
 import { errToString } from "@shared/utils/error";
-import { TeamDomain } from "@server/models";
+import { ExternalGroup, Group, GroupUser, TeamDomain } from "@server/models";
 import Collection from "@server/models/Collection";
 import UserAuthentication from "@server/models/UserAuthentication";
-import { buildUser, buildTeam, buildAdmin } from "@server/test/factories";
+import {
+  buildAdmin,
+  buildGroup,
+  buildTeam,
+  buildUser,
+} from "@server/test/factories";
 import { setSelfHosted } from "@server/test/support";
 import accountProvisioner from "./accountProvisioner";
 import { createContext } from "@server/context";
@@ -651,6 +656,304 @@ describe("accountProvisioner", () => {
 
       expect(isNewUser).toEqual(false);
       expect(user.role).not.toEqual(UserRole.Admin);
+    });
+  });
+
+  describe("groupNames sync", () => {
+    it("adds membership for a matching existing group", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({ teamId: team.id });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+      const group = await buildGroup({
+        teamId: team.id,
+        userId: existing.id,
+        name: "Engineering",
+      });
+
+      const { user, isNewUser } = await accountProvisioner(ctx, {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+        groupNames: ["Engineering"],
+      });
+
+      expect(isNewUser).toEqual(false);
+      expect(
+        await GroupUser.findOne({
+          where: { groupId: group.id, userId: user.id },
+        })
+      ).not.toBeNull();
+    });
+
+    it("does not auto-create a missing group", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({ teamId: team.id });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+
+      await accountProvisioner(ctx, {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+        groupNames: ["DoesNotExist"],
+      });
+
+      expect(
+        await Group.findOne({
+          where: { teamId: team.id, name: "DoesNotExist" },
+        })
+      ).toBeNull();
+    });
+
+    it("removes stale membership across logins", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({ teamId: team.id });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+      const groupB = await buildGroup({
+        teamId: team.id,
+        userId: existing.id,
+        name: "B",
+      });
+
+      const params = {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+      };
+
+      await accountProvisioner(ctx, { ...params, groupNames: ["A", "B"] });
+      await accountProvisioner(ctx, { ...params, groupNames: ["A"] });
+
+      expect(
+        await GroupUser.findOne({
+          where: { groupId: groupB.id, userId: existing.id },
+        })
+      ).toBeNull();
+    });
+
+    it("removes all synced memberships when groupNames is empty", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({ teamId: team.id });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+      const group = await buildGroup({
+        teamId: team.id,
+        userId: existing.id,
+        name: "Engineering",
+      });
+
+      const params = {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+      };
+
+      await accountProvisioner(ctx, {
+        ...params,
+        groupNames: ["Engineering"],
+      });
+      await accountProvisioner(ctx, { ...params, groupNames: [] });
+
+      expect(
+        await GroupUser.findOne({
+          where: { groupId: group.id, userId: existing.id },
+        })
+      ).toBeNull();
+    });
+
+    it("does not block login when group sync fails", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({ teamId: team.id });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+      const overLengthName = "x".repeat(256);
+
+      const { user, isNewUser } = await accountProvisioner(ctx, {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+        groupNames: [overLengthName],
+      });
+
+      expect(isNewUser).toEqual(false);
+      expect(user.id).toEqual(existing.id);
+    });
+
+    it("does not sync when groupNames is undefined", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({ teamId: team.id });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+
+      await accountProvisioner(ctx, {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+      });
+
+      expect(
+        await ExternalGroup.count({
+          where: { teamId: team.id },
+        })
+      ).toEqual(0);
+    });
+
+    it("composes role promotion with group sync", async () => {
+      const team = await buildTeam();
+      const providers = await team.$get("authenticationProviders");
+      const authenticationProvider = providers[0];
+      const existing = await buildUser({
+        teamId: team.id,
+        role: UserRole.Member,
+      });
+      const authentications = await existing.$get("authentications");
+      const authentication = authentications[0];
+      const group = await buildGroup({
+        teamId: team.id,
+        userId: existing.id,
+        name: "Engineering",
+      });
+
+      const { user } = await accountProvisioner(ctx, {
+        user: {
+          name: existing.name,
+          email: existing.email!,
+          avatarUrl: existing.avatarUrl,
+        },
+        team: {
+          name: team.name,
+          avatarUrl: team.avatarUrl,
+          subdomain: faker.internet.domainWord(),
+        },
+        authenticationProvider: {
+          name: authenticationProvider.name,
+          providerId: authenticationProvider.providerId,
+        },
+        authentication: {
+          providerId: authentication.providerId,
+          accessToken: "123",
+          scopes: ["read"],
+        },
+        role: UserRole.Admin,
+        groupNames: ["Engineering"],
+      });
+
+      expect(user.role).toEqual(UserRole.Admin);
+      expect(
+        await GroupUser.findOne({
+          where: { groupId: group.id, userId: user.id },
+        })
+      ).not.toBeNull();
     });
   });
 

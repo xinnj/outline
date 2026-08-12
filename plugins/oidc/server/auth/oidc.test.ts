@@ -2,119 +2,123 @@ import Redis from "@server/storage/redis";
 import { RedisPrefixHelper } from "@server/utils/RedisPrefixHelper";
 import { UserRole } from "@shared/types";
 import { getTestServer } from "@server/test/support";
-import { getAdminRoleFromClaims } from "./oidcRouter";
+import { getAdminRoleFromGroups, getGroupsFromClaims } from "./oidcRouter";
 import env from "../env";
 
 const server = getTestServer();
 
-describe("getAdminRoleFromClaims", () => {
-  const originalClaim = env.OIDC_ADMIN_CLAIM;
-  const originalClaimValue = env.OIDC_ADMIN_CLAIM_VALUE;
+describe("getGroupsFromClaims", () => {
+  const originalClaim = env.OIDC_GROUP_CLAIM;
 
   afterEach(() => {
-    env.OIDC_ADMIN_CLAIM = originalClaim;
-    env.OIDC_ADMIN_CLAIM_VALUE = originalClaimValue;
+    env.OIDC_GROUP_CLAIM = originalClaim;
   });
 
-  function setEnv(claim: string | undefined, value: string | undefined) {
-    env.OIDC_ADMIN_CLAIM = claim;
-    env.OIDC_ADMIN_CLAIM_VALUE = value;
+  function setClaim(claim: string | undefined) {
+    env.OIDC_GROUP_CLAIM = claim;
   }
 
-  it("returns undefined when OIDC_ADMIN_CLAIM is not set", () => {
-    setEnv(undefined, "admin");
-    const result = getAdminRoleFromClaims(
-      { groups: ["admin"] },
-      {},
-      env
-    );
-    expect(result).toBeUndefined();
+  it("returns undefined when OIDC_GROUP_CLAIM is not set", () => {
+    setClaim(undefined);
+    expect(getGroupsFromClaims({ groups: ["admin"] }, {}, env)).toBeUndefined();
   });
 
-  it("returns undefined when OIDC_ADMIN_CLAIM_VALUE is not set", () => {
-    setEnv("groups", undefined);
-    const result = getAdminRoleFromClaims(
-      { groups: ["admin"] },
-      {},
-      env
-    );
-    expect(result).toBeUndefined();
+  it("returns the string array from an array claim in the profile", () => {
+    setClaim("groups");
+    expect(
+      getGroupsFromClaims({ groups: ["engineering", "design"] }, {}, env)
+    ).toEqual(["engineering", "design"]);
   });
 
-  it("returns Admin when array claim contains the value", () => {
-    setEnv("groups", "outline-admins");
-    const result = getAdminRoleFromClaims(
-      { groups: ["engineering", "outline-admins"] },
-      {},
-      env
-    );
-    expect(result).toBe(UserRole.Admin);
+  it("filters non-string members out of an array claim", () => {
+    setClaim("groups");
+    expect(
+      getGroupsFromClaims({ groups: ["admin", 123, { x: 1 }, null] }, {}, env)
+    ).toEqual(["admin"]);
   });
 
-  it("returns undefined when array claim does not contain the value", () => {
-    setEnv("groups", "outline-admins");
-    const result = getAdminRoleFromClaims(
-      { groups: ["engineering"] },
-      {},
-      env
-    );
-    expect(result).toBeUndefined();
-  });
-
-  it("returns Admin when string claim matches exactly", () => {
-    setEnv("role", "admin");
-    const result = getAdminRoleFromClaims(
-      { role: "admin" },
-      {},
-      env
-    );
-    expect(result).toBe(UserRole.Admin);
-  });
-
-  it("returns undefined when string claim does not match", () => {
-    setEnv("role", "admin");
-    const result = getAdminRoleFromClaims(
-      { role: "user" },
-      {},
-      env
-    );
-    expect(result).toBeUndefined();
+  it("returns a single-element array for a string claim", () => {
+    setClaim("role");
+    expect(getGroupsFromClaims({ role: "admin" }, {}, env)).toEqual(["admin"]);
   });
 
   it("supports nested claim paths via dot notation", () => {
-    setEnv("realm_access.roles", "admin");
-    const result = getAdminRoleFromClaims(
-      { realm_access: { roles: ["admin", "user"] } },
-      {},
-      env
-    );
-    expect(result).toBe(UserRole.Admin);
+    setClaim("realm_access.roles");
+    expect(
+      getGroupsFromClaims(
+        { realm_access: { roles: ["admin", "user"] } },
+        {},
+        env
+      )
+    ).toEqual(["admin", "user"]);
   });
 
   it("falls back to token when claim is missing in profile", () => {
-    setEnv("groups", "outline-admins");
-    const result = getAdminRoleFromClaims(
-      {},
-      { groups: ["outline-admins"] },
-      env
-    );
-    expect(result).toBe(UserRole.Admin);
+    setClaim("groups");
+    expect(getGroupsFromClaims({}, { groups: ["engineering"] }, env)).toEqual([
+      "engineering",
+    ]);
   });
 
   it("returns undefined when claim is missing in both profile and token", () => {
-    setEnv("groups", "outline-admins");
-    const result = getAdminRoleFromClaims({}, {}, env);
-    expect(result).toBeUndefined();
+    setClaim("groups");
+    expect(getGroupsFromClaims({}, {}, env)).toBeUndefined();
   });
 
   it("returns undefined when claim value is neither array nor string", () => {
-    setEnv("groups", "admin");
-    const result = getAdminRoleFromClaims(
-      { groups: 123 },
-      {},
-      env
+    setClaim("groups");
+    expect(getGroupsFromClaims({ groups: 123 }, {}, env)).toBeUndefined();
+  });
+
+  it("returns an empty array when the claim array contains no strings", () => {
+    setClaim("groups");
+    expect(getGroupsFromClaims({ groups: [123, null, {}] }, {}, env)).toEqual(
+      []
     );
-    expect(result).toBeUndefined();
+  });
+});
+
+describe("getAdminRoleFromGroups", () => {
+  const originalAdminGroup = env.OIDC_ADMIN_GROUP;
+
+  afterEach(() => {
+    env.OIDC_ADMIN_GROUP = originalAdminGroup;
+  });
+
+  function setAdminGroup(name: string | undefined) {
+    env.OIDC_ADMIN_GROUP = name;
+  }
+
+  it("returns undefined when OIDC_ADMIN_GROUP is not set", () => {
+    setAdminGroup(undefined);
+    expect(getAdminRoleFromGroups(["outline_admin"], env)).toBeUndefined();
+  });
+
+  it("returns Admin when groups include the admin group", () => {
+    setAdminGroup("outline_admin");
+    expect(getAdminRoleFromGroups(["engineering", "outline_admin"], env)).toBe(
+      UserRole.Admin
+    );
+  });
+
+  it("returns undefined when groups do not include the admin group", () => {
+    setAdminGroup("outline_admin");
+    expect(getAdminRoleFromGroups(["engineering"], env)).toBeUndefined();
+  });
+
+  it("returns undefined when groups is undefined", () => {
+    setAdminGroup("outline_admin");
+    expect(getAdminRoleFromGroups(undefined, env)).toBeUndefined();
+  });
+
+  it("returns undefined when groups is empty", () => {
+    setAdminGroup("outline_admin");
+    expect(getAdminRoleFromGroups([], env)).toBeUndefined();
+  });
+
+  it("matches the admin group name case-sensitively", () => {
+    setAdminGroup("outline_admin");
+    expect(getAdminRoleFromGroups(["Outline_Admin"], env)).toBeUndefined();
   });
 });
 

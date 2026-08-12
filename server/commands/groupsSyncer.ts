@@ -15,6 +15,9 @@ interface Props {
   authenticationProvider: AuthenticationProvider;
   /** The groups reported by the external provider for this user. */
   externalGroups: ExternalGroupData[];
+  /** When false, map to existing internal groups by name instead of
+   * auto-creating missing ones. Unmatched names are skipped. */
+  createMissing?: boolean;
 }
 
 interface GroupSyncResult {
@@ -37,7 +40,13 @@ interface GroupSyncResult {
  */
 async function groupsSyncer(
   ctx: APIContext,
-  { user, team, authenticationProvider, externalGroups }: Props
+  {
+    user,
+    team,
+    authenticationProvider,
+    externalGroups,
+    createMissing = true,
+  }: Props
 ): Promise<GroupSyncResult> {
   const { transaction } = ctx.state;
   const result: GroupSyncResult = {
@@ -89,14 +98,34 @@ async function groupsSyncer(
 
     // Auto-create internal Group if one doesn't exist yet
     if (!externalGroup.groupId) {
-      const group = await Group.createWithCtx(ctx, {
-        name: eg.name,
-        teamId: team.id,
-        createdById: user.id,
-      });
-      await externalGroup.update({ groupId: group.id }, { transaction });
-      externalGroup.groupId = group.id;
-      result.groupsCreated++;
+      if (createMissing) {
+        const group = await Group.createWithCtx(ctx, {
+          name: eg.name,
+          teamId: team.id,
+          createdById: user.id,
+        });
+        await externalGroup.update({ groupId: group.id }, { transaction });
+        externalGroup.groupId = group.id;
+        result.groupsCreated++;
+      } else {
+        // Map-only-existing: find an internal group by name (case-insensitive),
+        // excluding the auto-managed "Default" group so claim-based sync never
+        // manages it. Skip if no match — never create, and never leave a
+        // dangling internal link.
+        const group = await Group.findOne({
+          where: {
+            teamId: team.id,
+            name: { [Op.iLike]: eg.name },
+            isDefault: false,
+          },
+          transaction,
+        });
+        if (!group) {
+          continue;
+        }
+        await externalGroup.update({ groupId: group.id }, { transaction });
+        externalGroup.groupId = group.id;
+      }
     }
 
     // Add user to group if not already a member

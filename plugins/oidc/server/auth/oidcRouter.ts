@@ -34,40 +34,59 @@ import { OIDCStrategy } from "./OIDCStrategy";
 import { createContext } from "@server/context";
 
 /**
- * Checks the OIDC claims against the configured env vars to determine if a
- * user should be granted the Admin role.
+ * Extracts a user's group names from the OIDC claims.
  *
  * @param profile The userinfo response from the OIDC provider.
  * @param token The decoded id_token claims.
  * @param oidcEnv The OIDC plugin environment.
- * @returns UserRole.Admin if claims match, undefined otherwise.
+ * @returns The group names from the claim, or undefined when the claim is
+ * missing or holds an invalid shape.
  */
-export function getAdminRoleFromClaims(
+export function getGroupsFromClaims(
   profile: Record<string, unknown>,
   token: Record<string, unknown>,
   oidcEnv: typeof env
-): UserRole | undefined {
-  if (!oidcEnv.OIDC_ADMIN_CLAIM || !oidcEnv.OIDC_ADMIN_CLAIM_VALUE) {
+): string[] | undefined {
+  if (!oidcEnv.OIDC_GROUP_CLAIM) {
     return undefined;
   }
 
   const claimValue =
-    get(profile, oidcEnv.OIDC_ADMIN_CLAIM) ??
-    get(token, oidcEnv.OIDC_ADMIN_CLAIM);
+    get(profile, oidcEnv.OIDC_GROUP_CLAIM) ??
+    get(token, oidcEnv.OIDC_GROUP_CLAIM);
 
   if (Array.isArray(claimValue)) {
-    return claimValue.includes(oidcEnv.OIDC_ADMIN_CLAIM_VALUE)
-      ? UserRole.Admin
-      : undefined;
+    return claimValue.filter(
+      (value): value is string => typeof value === "string"
+    );
   }
 
   if (typeof claimValue === "string") {
-    return claimValue === oidcEnv.OIDC_ADMIN_CLAIM_VALUE
-      ? UserRole.Admin
-      : undefined;
+    return [claimValue];
   }
 
   return undefined;
+}
+
+/**
+ * Derives the admin role from the claimed group names.
+ *
+ * @param groups The group names extracted from the claims.
+ * @param oidcEnv The OIDC plugin environment.
+ * @returns UserRole.Admin when the groups include OIDC_ADMIN_GROUP,
+ * undefined otherwise.
+ */
+export function getAdminRoleFromGroups(
+  groups: string[] | undefined,
+  oidcEnv: typeof env
+): UserRole | undefined {
+  if (!oidcEnv.OIDC_ADMIN_GROUP) {
+    return undefined;
+  }
+
+  return groups?.includes(oidcEnv.OIDC_ADMIN_GROUP)
+    ? UserRole.Admin
+    : undefined;
 }
 
 export interface OIDCEndpoints {
@@ -251,16 +270,23 @@ export function createOIDCRouter(
               user,
               authType: context.state?.auth?.type,
             });
-            const adminRole = getAdminRoleFromClaims(profile, token, env);
-            // When role mapping env vars are set, always pass a concrete value
-            // so accountProvisioner can distinguish "mapping not configured"
-            // (undefined) from "mapping says user is not an admin" (null).
+            // Claimed groups drive BOTH group sync and admin role derivation.
+            // undefined when the claim path is not configured; [] (full removal)
+            // when configured but the claim is missing so stale memberships are
+            // wiped on full sync.
+            const claimedGroups = env.OIDC_GROUP_CLAIM
+              ? (getGroupsFromClaims(profile, token, env) ?? [])
+              : undefined;
+
+            // Tri-state role: undefined = mapping not configured; Admin = in the
+            // admin group; null = configured but not in the admin group (demote).
             const role =
-              env.OIDC_ADMIN_CLAIM && env.OIDC_ADMIN_CLAIM_VALUE
-                ? (adminRole ?? null)
+              env.OIDC_GROUP_CLAIM && env.OIDC_ADMIN_GROUP
+                ? (getAdminRoleFromGroups(claimedGroups, env) ?? null)
                 : undefined;
             const result = await accountProvisioner(ctx, {
               role,
+              groupNames: claimedGroups,
               team: {
                 teamId: team?.id,
                 name: env.APP_NAME,

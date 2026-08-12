@@ -85,22 +85,21 @@ class OIDCPluginEnvironment extends Environment {
   public OIDC_SCOPES = environment.OIDC_SCOPES ?? "openid profile email";
 
   /**
-   * The claim path in the OIDC userinfo/id_token response that determines
-   * whether a user should be granted the Admin role. Supports dot-notation
-   * for nested paths (e.g. "realm_access.roles").
+   * The claim path in the OIDC userinfo/id_token response that lists the
+   * user's group memberships. Supports dot-notation for nested paths
+   * (e.g. "realm_access.roles"). When set, group membership is fully synced
+   * into existing Outline groups on every login (members removed from a
+   * claimed group are removed from the linked Outline group).
    */
-  public OIDC_ADMIN_CLAIM = this.toOptionalString(
-    environment.OIDC_ADMIN_CLAIM
-  );
+  public OIDC_GROUP_CLAIM = this.toOptionalString(environment.OIDC_GROUP_CLAIM);
 
   /**
-   * The value that the claim specified by OIDC_ADMIN_CLAIM must contain
-   * (in an array) or match exactly (as a string) for a user to be granted
-   * the Admin role.
+   * The name of the group within OIDC_GROUP_CLAIM that grants the Admin
+   * role. When both OIDC_GROUP_CLAIM and OIDC_ADMIN_GROUP are set, users
+   * whose claimed groups contain this name are promoted to Admin; users who
+   * stop matching are demoted to the default role.
    */
-  public OIDC_ADMIN_CLAIM_VALUE = this.toOptionalString(
-    environment.OIDC_ADMIN_CLAIM_VALUE
-  );
+  public OIDC_ADMIN_GROUP = this.toOptionalString(environment.OIDC_ADMIN_GROUP);
 
   /**
    * Disable autoredirect to the OIDC login page if there is only one

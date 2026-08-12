@@ -6,7 +6,7 @@ import {
   GroupUser,
 } from "@server/models";
 import { sequelize } from "@server/storage/database";
-import { buildUser } from "@server/test/factories";
+import { buildGroup, buildUser } from "@server/test/factories";
 import groupsSyncer from "./groupsSyncer";
 
 describe("groupsSyncer", () => {
@@ -186,5 +186,226 @@ describe("groupsSyncer", () => {
     );
 
     expect(result.membershipsRemoved).toEqual(1);
+  });
+
+  describe("createMissing: false", () => {
+    it("maps to an existing group by name without creating", async () => {
+      const user = await buildUser();
+      const team = await user.$get("team")!;
+      const authenticationProvider = (await AuthenticationProvider.findOne({
+        where: { teamId: user.teamId },
+      }))!;
+      const existing = await buildGroup({
+        teamId: team!.id,
+        userId: user.id,
+        name: "Engineering",
+      });
+
+      const result = await sequelize.transaction(async (transaction) =>
+        groupsSyncer(createContext({ user, transaction, ip }), {
+          user,
+          team: team!,
+          authenticationProvider,
+          externalGroups: [{ id: "Engineering", name: "Engineering" }],
+          createMissing: false,
+        })
+      );
+
+      expect(result.groupsCreated).toEqual(0);
+      expect(result.membershipsAdded).toEqual(1);
+
+      const membership = await GroupUser.findOne({
+        where: { groupId: existing.id, userId: user.id },
+      });
+      expect(membership).not.toBeNull();
+
+      const externalGroup = await ExternalGroup.findOne({
+        where: {
+          authenticationProviderId: authenticationProvider.id,
+          externalId: "Engineering",
+        },
+      });
+      expect(externalGroup!.groupId).toEqual(existing.id);
+    });
+
+    it("matches group names case-insensitively", async () => {
+      const user = await buildUser();
+      const team = await user.$get("team")!;
+      const authenticationProvider = (await AuthenticationProvider.findOne({
+        where: { teamId: user.teamId },
+      }))!;
+      const existing = await buildGroup({
+        teamId: team!.id,
+        userId: user.id,
+        name: "engineering",
+      });
+
+      const result = await sequelize.transaction(async (transaction) =>
+        groupsSyncer(createContext({ user, transaction, ip }), {
+          user,
+          team: team!,
+          authenticationProvider,
+          externalGroups: [{ id: "Engineering", name: "Engineering" }],
+          createMissing: false,
+        })
+      );
+
+      expect(result.groupsCreated).toEqual(0);
+      expect(result.membershipsAdded).toEqual(1);
+
+      const externalGroup = await ExternalGroup.findOne({
+        where: {
+          authenticationProviderId: authenticationProvider.id,
+          externalId: "Engineering",
+        },
+      });
+      expect(externalGroup!.groupId).toEqual(existing.id);
+    });
+
+    it("skips a claimed group that does not exist", async () => {
+      const user = await buildUser();
+      const team = await user.$get("team")!;
+      const authenticationProvider = (await AuthenticationProvider.findOne({
+        where: { teamId: user.teamId },
+      }))!;
+
+      const result = await sequelize.transaction(async (transaction) =>
+        groupsSyncer(createContext({ user, transaction, ip }), {
+          user,
+          team: team!,
+          authenticationProvider,
+          externalGroups: [{ id: "DoesNotExist", name: "DoesNotExist" }],
+          createMissing: false,
+        })
+      );
+
+      expect(result.groupsCreated).toEqual(0);
+      expect(result.membershipsAdded).toEqual(0);
+
+      const group = await Group.findOne({
+        where: { teamId: team!.id, name: "DoesNotExist" },
+      });
+      expect(group).toBeNull();
+
+      const externalGroup = await ExternalGroup.findOne({
+        where: {
+          authenticationProviderId: authenticationProvider.id,
+          externalId: "DoesNotExist",
+        },
+      });
+      expect(externalGroup).not.toBeNull();
+      expect(externalGroup!.groupId).toBeNull();
+    });
+
+    it("removes stale memberships on re-sync", async () => {
+      const user = await buildUser();
+      const team = await user.$get("team")!;
+      const authenticationProvider = (await AuthenticationProvider.findOne({
+        where: { teamId: user.teamId },
+      }))!;
+      const groupA = await buildGroup({
+        teamId: team!.id,
+        userId: user.id,
+        name: "A",
+      });
+      const groupB = await buildGroup({
+        teamId: team!.id,
+        userId: user.id,
+        name: "B",
+      });
+
+      const sync = (names: string[]) =>
+        sequelize.transaction(async (transaction) =>
+          groupsSyncer(createContext({ user, transaction, ip }), {
+            user,
+            team: team!,
+            authenticationProvider,
+            externalGroups: names.map((name) => ({ id: name, name })),
+            createMissing: false,
+          })
+        );
+
+      await sync(["A", "B"]);
+
+      const result = await sync(["A"]);
+
+      expect(result.membershipsRemoved).toEqual(1);
+      expect(
+        await GroupUser.findOne({
+          where: { groupId: groupA.id, userId: user.id },
+        })
+      ).not.toBeNull();
+      expect(
+        await GroupUser.findOne({
+          where: { groupId: groupB.id, userId: user.id },
+        })
+      ).toBeNull();
+    });
+
+    it("removes all memberships when the claimed list is empty", async () => {
+      const user = await buildUser();
+      const team = await user.$get("team")!;
+      const authenticationProvider = (await AuthenticationProvider.findOne({
+        where: { teamId: user.teamId },
+      }))!;
+      const existing = await buildGroup({
+        teamId: team!.id,
+        userId: user.id,
+        name: "Engineering",
+      });
+
+      await sequelize.transaction(async (transaction) =>
+        groupsSyncer(createContext({ user, transaction, ip }), {
+          user,
+          team: team!,
+          authenticationProvider,
+          externalGroups: [{ id: "Engineering", name: "Engineering" }],
+          createMissing: false,
+        })
+      );
+
+      const result = await sequelize.transaction(async (transaction) =>
+        groupsSyncer(createContext({ user, transaction, ip }), {
+          user,
+          team: team!,
+          authenticationProvider,
+          externalGroups: [],
+          createMissing: false,
+        })
+      );
+
+      expect(result.membershipsRemoved).toEqual(1);
+      expect(
+        await GroupUser.findOne({
+          where: { groupId: existing.id, userId: user.id },
+        })
+      ).toBeNull();
+    });
+
+    it("does not manage the Default group", async () => {
+      const user = await buildUser();
+      const team = await user.$get("team")!;
+      const authenticationProvider = (await AuthenticationProvider.findOne({
+        where: { teamId: user.teamId },
+      }))!;
+      const defaultGroup = await Group.findDefaultGroup(team!.id, user.id);
+
+      const result = await sequelize.transaction(async (transaction) =>
+        groupsSyncer(createContext({ user, transaction, ip }), {
+          user,
+          team: team!,
+          authenticationProvider,
+          externalGroups: [{ id: "Default", name: "Default" }],
+          createMissing: false,
+        })
+      );
+
+      expect(result.membershipsAdded).toEqual(0);
+      expect(
+        await GroupUser.findOne({
+          where: { groupId: defaultGroup.id, userId: user.id },
+        })
+      ).toBeNull();
+    });
   });
 });

@@ -74,11 +74,13 @@ outline:
     userinfoUrl: ""
     displayName: "SSO"
     scopes: "openid profile email"
-    # Claim path and value that grant Admin role. When both are set, any user
-    # whose OIDC claims match is promoted to Admin on every login (and demoted
-    # if they stop matching). Supports dot-notation for nested paths.
-    adminClaim: "groups"
-    adminClaimValue: "outline_admin"
+    # Claim path containing the user's group memberships. When set, membership
+    # is fully synced into EXISTING Outline groups on every login (users removed
+    # from a claimed group are removed from the linked Outline group; missing
+    # groups are not auto-created). The group within that claim named by
+    # adminGroup grants the Admin role. Supports dot-notation for nested paths.
+    groupClaim: "groups"
+    adminGroup: "outline_admin"
 
   # Default role for new SSO users (viewer or member). Overrides team-level setting.
   defaultUserRole: "member"

@@ -31,14 +31,14 @@ The base path is surfaced to the client as `window.env.BASE_PATH` and used by th
 
 The `CDN_URL` environment variable is read at container start, not at build time. Assets (JS bundles, CSS, fonts, images) resolve against the CDN when set, or fall back to the base path. Switching CDNs no longer requires rebuilding the image.
 
-### OIDC admin role mapping
+### OIDC group claim
 
-Two new OIDC environment variables provide automatic admin role assignment based on identity provider claims:
+Two new OIDC environment variables map identity provider group claims to Outline groups and roles:
 
-- **`OIDC_ADMIN_CLAIM`** — claim path in the OIDC userinfo/id_token response (supports dot-notation for nested paths, e.g. `realm_access.roles`)
-- **`OIDC_ADMIN_CLAIM_VALUE`** — the value to match against the claim. If the claim is an array, the user gets Admin if the array contains this value. If it's a string, it must match exactly.
+- **`OIDC_GROUP_CLAIM`** — claim path in the OIDC userinfo/id_token response listing the user's groups (supports dot-notation for nested paths, e.g. `realm_access.roles`). When set, membership is fully synced into **existing** Outline groups on every login: users are added to Outline groups whose name matches a claimed group (case-insensitive), and removed from previously-synced groups they no longer claim. Groups that don't already exist in Outline are **not** auto-created.
+- **`OIDC_ADMIN_GROUP`** — the group name within `OIDC_GROUP_CLAIM` that grants the Admin role. Users whose claimed groups contain this name are promoted to Admin; users who stop matching are demoted to the default role.
 
-When both are set, role mapping runs on every login: users who match are promoted to Admin, users who stop matching are demoted. When unset, role assignment follows the existing team-level default.
+> **Provider note:** your IdP must be configured to return the `groups` claim — e.g. add `groups` to `OIDC_SCOPES` (Keycloak also needs a client scope / group claim mapper).
 
 ### Helm chart
 
@@ -110,8 +110,8 @@ helm install outline charts/outline \
 | `oidc.userinfoUrl` | string | `""` | **Required if no `issuerUrl`.** OIDC userinfo endpoint |
 | `oidc.displayName` | string | `"SSO"` | Login button label for this OIDC provider |
 | `oidc.scopes` | string | `"openid profile email"` | OIDC scopes to request |
-| `oidc.adminClaim` | string | `"groups"` | Claim path for admin role mapping. Supports dot-notation (e.g. `realm_access.roles`). Ignored when `adminClaimValue` is empty. |
-| `oidc.adminClaimValue` | string | `"outline_admin"` | Value that the claim must contain (array) or match (string) to grant Admin. Ignored when `adminClaim` is empty. |
+| `oidc.groupClaim` | string | `"groups"` | Claim path listing the user's group memberships. Supports dot-notation (e.g. `realm_access.roles`). When set, membership is fully synced into existing Outline groups on every login. |
+| `oidc.adminGroup` | string | `"outline_admin"` | Group name within `groupClaim` that grants the Admin role. Users matching it are promoted to Admin; users who stop matching are demoted. |
 | `defaultUserRole` | string | `"member"` | Default role for new SSO users (`viewer` or `member`). Overrides the team-level setting. |
 | `rateLimiter.enabled` | string | `"true"` | Enable API rate limiting |
 | `rateLimiter.requests` | string | `"1000"` | Maximum requests per duration window |

@@ -92,6 +92,15 @@ type Props = {
    *   admin claim — demote to the default role.
    */
   role?: UserRole | null;
+  /**
+   * Group names claimed by the auth provider (e.g. from an OIDC group
+   * claim). When provided, the user's membership in existing Outline groups
+   * matching these names is fully synced on every login (users removed from
+   * a claimed group are removed from the linked Outline group). Never
+   * auto-creates groups. `undefined` (or absent): group sync not configured.
+   * `[]`: remove all previously-synced memberships.
+   */
+  groupNames?: string[];
 };
 
 export type AccountProvisionerResult = {
@@ -109,6 +118,7 @@ async function accountProvisioner(
     authenticationProvider: authenticationProviderParams,
     authentication: authenticationParams,
     role,
+    groupNames,
   }: Props
 ): Promise<AccountProvisionerResult> {
   let result;
@@ -255,13 +265,13 @@ async function accountProvisioner(
 
         if (wasGuest && !isGuest) {
           try {
-            const defaultGroup = await Group.findDefaultGroup(
-              team.id,
-              user.id
-            );
+            const defaultGroup = await Group.findDefaultGroup(team.id, user.id);
             await GroupUser.findOrCreate({
               where: { groupId: defaultGroup.id, userId: user.id },
-              defaults: { createdById: user.id, permission: GroupPermission.Member },
+              defaults: {
+                createdById: user.id,
+                permission: GroupPermission.Member,
+              },
             });
           } catch (err) {
             Logger.warn(
@@ -364,6 +374,37 @@ async function accountProvisioner(
           });
         }
       }
+    }
+  }
+
+  // Sync group memberships derived from env-configured OIDC group claims.
+  // Separate from the settings-based GroupSyncProvider path above: driven
+  // purely by claim values already present in the login, so it needs no
+  // access token or provider settings.
+  if (groupNames !== undefined) {
+    try {
+      const externalGroups = groupNames.map((name) => ({ id: name, name }));
+      await sequelize.transaction(async (transaction) => {
+        const groupSyncCtx = createContext({
+          user,
+          ip: ctx.context?.ip,
+          transaction,
+        });
+
+        await groupsSyncer(groupSyncCtx, {
+          user,
+          team,
+          authenticationProvider,
+          externalGroups,
+          createMissing: false,
+        });
+      });
+    } catch (err) {
+      // Group sync failure should never block login
+      Logger.error("OIDC group sync failed during login", toError(err), {
+        userId: user.id,
+        provider: authenticationProviderParams.name,
+      });
     }
   }
 
