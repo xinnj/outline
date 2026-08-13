@@ -1497,6 +1497,61 @@ describe("#documents.search", () => {
     expect(body.data[0].document.title).toEqual("Much test support");
   });
 
+  it("should not return a stopped-inheritance document from a readable collection", async () => {
+    const admin = await buildAdmin();
+    const user = await buildUser({ teamId: admin.teamId });
+    const collection = await buildCollection({
+      teamId: admin.teamId,
+      permission: CollectionPermission.Read,
+    });
+    await buildDocument({
+      teamId: admin.teamId,
+      collectionId: collection.id,
+      userId: admin.id,
+      inheritPermission: false,
+      title: "search term",
+      text: "search term",
+    });
+
+    const res = await server.post("/api/documents.search", user, {
+      body: { query: "search term" },
+    });
+    const body = await res.json();
+    expect(res.status).toEqual(200);
+    expect(body.data).toEqual([]);
+  });
+
+  it("should include a stopped-inheritance document once the user has an explicit membership", async () => {
+    const admin = await buildAdmin();
+    const user = await buildUser({ teamId: admin.teamId });
+    const collection = await buildCollection({
+      teamId: admin.teamId,
+      permission: CollectionPermission.Read,
+    });
+    const document = await buildDocument({
+      teamId: admin.teamId,
+      collectionId: collection.id,
+      userId: admin.id,
+      inheritPermission: false,
+      title: "search term",
+      text: "search term",
+    });
+    await UserMembership.create({
+      userId: user.id,
+      documentId: document.id,
+      createdById: admin.id,
+      permission: DocumentPermission.Read,
+    });
+
+    const res = await server.post("/api/documents.search", user, {
+      body: { query: "search term" },
+    });
+    const body = await res.json();
+    expect(res.status).toEqual(200);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].document.id).toBe(document.id);
+  });
+
   it("should return results using shareId", async () => {
     const subdomain = faker.internet.domainWord();
     const team = await buildTeam({ subdomain });
@@ -1534,6 +1589,42 @@ describe("#documents.search", () => {
     expect(res.status).toEqual(200);
     expect(body.data.length).toEqual(1);
     expect(body.data[0].document.id).toEqual(share.documentId);
+  });
+
+  it("should not return a stopped-inheritance document from a collection share", async () => {
+    const user = await buildUser();
+    const collection = await buildCollection({
+      teamId: user.teamId,
+      userId: user.id,
+    });
+    const findableDocument = await buildDocument({
+      teamId: user.teamId,
+      collectionId: collection.id,
+      userId: user.id,
+      title: "search term",
+      text: "random text",
+    });
+    await buildDocument({
+      teamId: user.teamId,
+      collectionId: collection.id,
+      userId: user.id,
+      inheritPermission: false,
+      title: "search term",
+      text: "should not be found",
+    });
+    const share = await buildShare({
+      collectionId: collection.id,
+      teamId: user.teamId,
+      userId: user.id,
+    });
+
+    const res = await server.post("/api/documents.search", {
+      body: { query: "search term", shareId: share.id },
+    });
+    const body = await res.json();
+    expect(res.status).toEqual(200);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].document.id).toEqual(findableDocument.id);
   });
 
   it("should not return drafts using shareId", async () => {

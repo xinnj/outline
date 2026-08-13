@@ -12,6 +12,7 @@ import {
 import type { User } from "@server/models";
 import { Collection, Document, Share } from "@server/models";
 import { authorize, can } from "@server/policies";
+import { filterDocumentStructureForShare } from "@server/utils/documentVisibility";
 
 type LoadPublicShareProps = {
   id: string;
@@ -97,6 +98,10 @@ export async function loadPublicShare({
     sharedTree =
       associatedCollection?.getDocumentTree(share.document.id) ?? null;
   }
+
+  // A share grants access through inheritance from the shared root, so
+  // documents that have stopped inheriting permissions must be excluded.
+  sharedTree = await filterDocumentStructureForShare(sharedTree);
 
   if (sharedTree && share.domain) {
     sharedTree.url = "";

@@ -26,6 +26,7 @@ import type {
   SearchResponse,
 } from "@server/utils/BaseSearchProvider";
 import { BaseSearchProvider } from "@server/utils/BaseSearchProvider";
+import { getStoppedInheritanceDocumentIds } from "@server/utils/documentVisibility";
 
 type RankedDocument = Document & {
   id: string;
@@ -215,6 +216,17 @@ export default class PostgresSearchProvider extends BaseSearchProvider {
 
         documentIds = [sharedDocument.id, ...childDocumentIds];
       }
+
+      // A share grants access through inheritance from the shared root, so
+      // documents that have stopped inheriting permissions must be excluded.
+      // For a document share the shared root itself is always accessible.
+      const restrictedIds = await getStoppedInheritanceDocumentIds(
+        documentIds ?? []
+      );
+      if (options.share.documentId) {
+        restrictedIds.delete(options.share.documentId);
+      }
+      documentIds = (documentIds ?? []).filter((id) => !restrictedIds.has(id));
 
       where[Op.and].push({
         id: documentIds,
@@ -634,9 +646,25 @@ export default class PostgresSearchProvider extends BaseSearchProvider {
     };
 
     if (model instanceof User) {
+      // A document that has stopped inheriting permissions (`inheritPermission`
+      // is false) is only readable through a direct membership, never through
+      // the collection it lives in. Memberships copied from a parent document
+      // (`sourceId` set) must also be ignored in that case.
       where[Op.or].push(
-        { "$memberships.id$": { [Op.ne]: null } },
-        { "$groupMemberships.id$": { [Op.ne]: null } }
+        {
+          "$memberships.id$": { [Op.ne]: null },
+          [Op.or]: [
+            { inheritPermission: { [Op.ne]: false } },
+            { "$memberships.sourceId$": { [Op.is]: null } },
+          ],
+        },
+        {
+          "$groupMemberships.id$": { [Op.ne]: null },
+          [Op.or]: [
+            { inheritPermission: { [Op.ne]: false } },
+            { "$groupMemberships.sourceId$": { [Op.is]: null } },
+          ],
+        }
       );
 
       // Allow users to see their own drafts that have no collection, where no
@@ -663,7 +691,17 @@ export default class PostgresSearchProvider extends BaseSearchProvider {
       where[Op.and].push({ collectionId: options.collectionId });
     }
     if (collectionIds.length) {
-      where[Op.or].push({ collectionId: collectionIds });
+      // Collection access is inherited by documents unless a document has
+      // explicitly stopped inheriting permissions. Share search (`Team`) keeps
+      // the share as its own grant and is unaffected.
+      where[Op.or].push(
+        model instanceof User
+          ? {
+              collectionId: collectionIds,
+              inheritPermission: { [Op.ne]: false },
+            }
+          : { collectionId: collectionIds }
+      );
     }
 
     if (options.dateFilter) {

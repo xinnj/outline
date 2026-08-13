@@ -6,7 +6,11 @@ import {
   buildTeam,
   buildUser,
 } from "@server/test/factories";
-import { loadPublicShare, loadShareWithParent } from "./shareLoader";
+import {
+  getAllIdsInSharedTree,
+  loadPublicShare,
+  loadShareWithParent,
+} from "./shareLoader";
 
 describe("shareLoader", () => {
   describe("collection share", () => {
@@ -46,6 +50,39 @@ describe("shareLoader", () => {
         childDocument.id
       );
       expect(result.document).toBeNull();
+    });
+
+    it("should exclude a stopped-inheritance document from a collection share tree", async () => {
+      const user = await buildUser();
+      const collection = await buildCollection({
+        userId: user.id,
+        teamId: user.teamId,
+      });
+      const document = await buildDocument({
+        collectionId: collection.id,
+        userId: user.id,
+        teamId: user.teamId,
+      });
+      const restrictedDocument = await buildDocument({
+        collectionId: collection.id,
+        userId: user.id,
+        teamId: user.teamId,
+        inheritPermission: false,
+      });
+      const share = await buildShare({
+        userId: user.id,
+        teamId: user.teamId,
+        collectionId: collection.id,
+      });
+
+      const result = await loadPublicShare({
+        id: share.id,
+      });
+
+      expect(result.sharedTree?.id).toEqual(collection.id);
+      const ids = getAllIdsInSharedTree(result.sharedTree);
+      expect(ids).toContain(document.id);
+      expect(ids).not.toContain(restrictedDocument.id);
     });
 
     it("should return correct path for root node in sharedTree for domain", async () => {
@@ -160,6 +197,39 @@ describe("shareLoader", () => {
       expect(result.sharedTree?.children.length).toEqual(1);
       expect(result.sharedTree?.children[0].id).toEqual(childDocument.id);
       expect(result.collection).toBeNull();
+    });
+
+    it("should exclude a stopped-inheritance child from a document share tree", async () => {
+      const user = await buildUser();
+      const collection = await buildCollection({
+        userId: user.id,
+        teamId: user.teamId,
+      });
+      const document = await buildDocument({
+        collectionId: collection.id,
+        userId: user.id,
+        teamId: user.teamId,
+      });
+      await buildDocument({
+        parentDocumentId: document.id,
+        collectionId: collection.id,
+        userId: user.id,
+        teamId: user.teamId,
+        inheritPermission: false,
+      });
+      const share = await buildShare({
+        includeChildDocuments: true,
+        userId: user.id,
+        teamId: user.teamId,
+        documentId: document.id,
+      });
+
+      const result = await loadPublicShare({
+        id: share.id,
+      });
+
+      expect(result.sharedTree?.id).toEqual(document.id);
+      expect(getAllIdsInSharedTree(result.sharedTree)).toEqual([document.id]);
     });
 
     it("should not return share tree when includeChildDocuments is false", async () => {
