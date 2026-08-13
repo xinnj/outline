@@ -1,8 +1,8 @@
 # E2E Coverage Status
 
-> **Summary:** 90 covered · 1 partial · 18 not covered (109 total) · 83% covered
+> **Summary:** 91 covered · 1 partial · 18 not covered (110 total) · 83% covered
 >
-> **Spec files:** `auth.spec.ts` (4 tests), `collaboration.spec.ts` (2 tests), `collections.spec.ts` (9 tests), `comments.spec.ts` (5 tests), `documents.spec.ts` (15 tests), `groups.spec.ts` (14 tests), `home.spec.ts` (6 tests), `inheritance.spec.ts` (4 tests), `members.spec.ts` (6 tests), `search.spec.ts` (3 tests), `settings.spec.ts` (6 tests), `sharing.spec.ts` (8 tests), `stars.spec.ts` (4 tests), `subpath.spec.ts` (10 tests), `templates.spec.ts` (2 tests)
+> **Spec files:** `auth.spec.ts` (5 tests), `collaboration.spec.ts` (2 tests), `collections.spec.ts` (9 tests), `comments.spec.ts` (5 tests), `documents.spec.ts` (15 tests), `groups.spec.ts` (14 tests), `home.spec.ts` (6 tests), `inheritance.spec.ts` (4 tests), `members.spec.ts` (6 tests), `search.spec.ts` (3 tests), `settings.spec.ts` (6 tests), `sharing.spec.ts` (8 tests), `stars.spec.ts` (4 tests), `subpath.spec.ts` (10 tests), `templates.spec.ts` (2 tests)
 
 ---
 
@@ -13,6 +13,7 @@
 - [x] Session cookie path scoping — `subpath.spec.ts` — 🔴 high
 - [ ] Invite + accept + register flow — ⚪ manual (needs email/SMTP interception)
 - [x] Logout (cookie cleared) — `auth.spec.ts` — 🔴 high
+- [x] OIDC logout token cookie scoped to base path — `auth.spec.ts` — 🔴 high
 - [ ] Passkey / WebAuthn login — ⚪ manual (needs browser-level WebAuthn emulation)
 - [ ] Email magic link login — ⚪ manual (needs email/SMTP interception)
 - [ ] Slack OAuth login — ⚪ manual (needs Slack dev app + test workspace)

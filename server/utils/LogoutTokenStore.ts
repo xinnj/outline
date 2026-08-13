@@ -102,7 +102,7 @@ export class LogoutTokenStore {
   }
 
   private get cookiePath(): string {
-    return `/auth/${this.provider}.logout`;
+    return `${env.basePath || ""}/auth/${this.provider}.logout`;
   }
 
   private cookieOptions(ctx: Context, expires: Date) {

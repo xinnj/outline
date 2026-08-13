@@ -40,6 +40,23 @@ test.describe("Authentication", () => {
     await context.close();
   });
 
+  test("should scope the OIDC logout token cookie to the base path", async ({
+    browser,
+  }) => {
+    const { context } = await loginViaOIDC(browser, basePath);
+
+    // The OIDC id_token is stored server-side behind a session cookie, and that
+    // cookie must be scoped to the base path. Otherwise the browser never sends
+    // it back to /auth/oidc.logout, so the provider can't scope the
+    // RP-initiated logout (it falls back to a logout-confirm page / error).
+    const cookies = await context.cookies();
+    const oidcSession = cookies.find((c) => c.name === "oidcSession");
+    expect(oidcSession).toBeDefined();
+    expect(oidcSession?.path).toBe(`${basePath}/auth/oidc.logout`);
+
+    await context.close();
+  });
+
   test("should invalidate session via /auth.delete", async ({ browser }) => {
     const auth = await loginViaOIDC(browser, basePath);
     const { context, page } = auth;

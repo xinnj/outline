@@ -1,19 +1,27 @@
 import type { Context } from "koa";
+import env from "@server/env";
 import Redis from "@server/storage/redis";
 import { LogoutTokenStore } from "./LogoutTokenStore";
 import { RedisPrefixHelper } from "./RedisPrefixHelper";
 
+interface SetCookieOptions {
+  path?: string;
+}
+
 /**
  * Minimal Koa context stub exposing only the cookie jar and hostname the store
- * relies on.
+ * relies on. Captures the options passed to `cookies.set` so tests can assert
+ * on the cookie `path` scope.
  */
 function buildContext(cookies: Record<string, string> = {}) {
   const jar = new Map(Object.entries(cookies));
+  const setOptions = new Map<string, SetCookieOptions>();
   return {
     request: { hostname: "localhost" },
     cookies: {
       get: (name: string) => jar.get(name),
-      set: (name: string, value: string) => {
+      set: (name: string, value: string, options?: SetCookieOptions) => {
+        setOptions.set(name, options ?? {});
         if (value) {
           jar.set(name, value);
         } else {
@@ -21,7 +29,8 @@ function buildContext(cookies: Record<string, string> = {}) {
         }
       },
     },
-  } as unknown as Context;
+    setOptions,
+  } as unknown as Context & { setOptions: Map<string, SetCookieOptions> };
 }
 
 describe("LogoutTokenStore", () => {
@@ -68,5 +77,29 @@ describe("LogoutTokenStore", () => {
         RedisPrefixHelper.getLogoutTokenKey("saml", sessionId!)
       )
     ).toEqual("saml-token");
+  });
+
+  describe("basePath", () => {
+    it("scopes the logout cookie path under the base path", async () => {
+      env.URL = "https://example.com/outline";
+
+      const ctx = buildContext();
+      await store.persist(ctx, "the-token");
+
+      expect(ctx.setOptions.get("oidcSession")?.path).toEqual(
+        "/outline/auth/oidc.logout"
+      );
+    });
+
+    it("scopes the logout cookie path at the domain root", async () => {
+      env.URL = "https://example.com";
+
+      const ctx = buildContext();
+      await store.persist(ctx, "the-token");
+
+      expect(ctx.setOptions.get("oidcSession")?.path).toEqual(
+        "/auth/oidc.logout"
+      );
+    });
   });
 });
